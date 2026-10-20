@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>JobBridge Fetch</title>
+    <link rel="stylesheet" href="popup.css" />
+    <style>
+      body {
+        width: auto;
+        max-width: 520px;
+        margin: 0 auto;
+        padding: 28px 20px;
+      }
+      .log {
+        margin-top: 16px;
+        padding: 12px 14px;
+        border-radius: 10px;
+        background: #fff;
+        border: 1px solid var(--line);
+        font-size: 12px;
+        line-height: 1.45;
+        white-space: pre-wrap;
+        max-height: 360px;
+        overflow: auto;
+      }
+    </style>
+  </head>
+  <body>
+    <header class="brand">
+      <span class="mark" aria-hidden="true">JB</span>
+      <div>
+        <h1>JobBridge Fetch</h1>
+        <p class="sub">Remote · US only · keep this tab open</p>
+      </div>
+    </header>
+    <p id="status" class="status" role="status">Starting…</p>
+    <pre id="log" class="log" hidden></pre>
+    <script src="lib/xlsx.mini.min.js"></script>
+    <script type="module" src="runner.js"></script>
+  </body>
+</html>

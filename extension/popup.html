@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>JobBridge Fetch</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <header class="brand">
+      <span class="mark" aria-hidden="true">JB</span>
+      <div>
+        <h1>JobBridge</h1>
+        <p class="sub">Remote · US · no local server</p>
+      </div>
+    </header>
+
+    <form id="fetch-form" autocomplete="off">
+      <fieldset class="platforms">
+        <legend>Platforms</legend>
+        <label class="check">
+          <input type="checkbox" name="site" value="linkedin" checked />
+          LinkedIn <span class="hint">(remote US)</span>
+        </label>
+        <label class="check">
+          <input type="checkbox" name="site" value="indeed" checked />
+          Indeed
+        </label>
+        <label class="check">
+          <input type="checkbox" name="site" value="wellfound" checked />
+          Wellfound
+        </label>
+        <label class="check">
+          <input type="checkbox" name="site" value="glassdoor" checked />
+          Glassdoor
+        </label>
+        <label class="check">
+          <input type="checkbox" name="site" value="zip_recruiter" checked />
+          ZipRecruiter
+        </label>
+        <label class="check">
+          <input type="checkbox" name="site" value="jobright" checked />
+          Jobright
+        </label>
+        <label class="check">
+          <input type="checkbox" name="site" value="dice" checked />
+          Dice
+        </label>
+      </fieldset>
+
+      <label class="field">
+        <span>Count</span>
+        <input
+          id="count"
+          name="count"
+          type="number"
+          min="1"
+          max="200"
+          value="50"
+          required
+        />
+      </label>
+
+      <label class="field">
+        <span>Posted</span>
+        <select id="date_preset" name="date_preset">
+          <option value="today" selected>Today (last 24 hours)</option>
+          <option value="3days">3 days (last 72 hours)</option>
+        </select>
+      </label>
+
+      <label class="field">
+        <span>Type</span>
+        <select id="job_type" name="job_type">
+          <option value="fulltime" selected>Full time</option>
+          <option value="contract">Contract</option>
+        </select>
+      </label>
+
+      <label class="field">
+        <span>Years</span>
+        <input
+          id="years"
+          name="years"
+          type="number"
+          min="0"
+          max="40"
+          step="0.5"
+          placeholder="e.g. 5 (optional)"
+        />
+      </label>
+      <p class="hint block">
+        Enter 5 to keep jobs that ask for 5.5 years or fewer
+        (“5+ years experience”). Jobs that don’t state years stay.
+      </p>
+
+      <label class="field">
+        <span>Title</span>
+        <input
+          id="title"
+          name="title"
+          type="text"
+          placeholder="e.g. Software Engineer (optional)"
+        />
+      </label>
+
+      <label class="field">
+        <span>Stack</span>
+        <input
+          id="stack"
+          name="stack"
+          type="text"
+          placeholder="e.g. React TypeScript"
+        />
+      </label>
+
+      <button type="submit" id="ok-btn" class="ok">OK</button>
+    </form>
+
+    <p id="status" class="status" role="status" aria-live="polite"></p>
+
+    <script src="popup.js"></script>
+  </body>
+</html>

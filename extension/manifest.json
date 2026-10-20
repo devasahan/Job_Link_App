@@ -1,0 +1,61 @@
+{
+  "manifest_version": 3,
+  "name": "JobBridge Fetch",
+  "version": "1.11.0",
+  "description": "Fetch remote US jobs from LinkedIn, Indeed, Wellfound, Glassdoor, ZipRecruiter, Jobright, and Dice, then download Excel.",
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "JobBridge Fetch",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "permissions": [
+    "storage",
+    "tabs",
+    "scripting",
+    "declarativeNetRequestWithHostAccess"
+  ],
+  "host_permissions": [
+    "https://apis.indeed.com/*",
+    "https://www.indeed.com/*",
+    "https://www.linkedin.com/*",
+    "https://api.orgupdate.com/*",
+    "https://www.glassdoor.com/*",
+    "https://*.glassdoor.com/*",
+    "https://wellfound.com/*",
+    "https://*.ziprecruiter.com/*",
+    "https://*.ziprecruiter.ie/*",
+    "https://*.ziprecruiter.co.uk/*",
+    "https://*.ziprecruiter.ca/*",
+    "https://api.ziprecruiter.com/*",
+    "https://jobright.ai/*",
+    "https://www.jobright.ai/*",
+    "https://swan-api.jobright.ai/*",
+    "https://www.dice.com/*",
+    "https://dice.com/*"
+  ],
+  "declarative_net_request": {
+    "rule_resources": [
+      {
+        "id": "header_rules",
+        "enabled": true,
+        "path": "rules/headers.json"
+      }
+    ]
+  },
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'self'"
+  }
+}

@@ -1,0 +1,117 @@
+import { scrapeIndeed } from "./indeed.js";
+import { scrapeLinkedIn } from "./linkedin.js";
+import { scrapeWellfound } from "./wellfound.js";
+import { scrapeGlassdoor } from "./glassdoor.js";
+import { scrapeZipRecruiter } from "./ziprecruiter.js";
+import { scrapeJobright } from "./jobright.js";
+import { scrapeDice } from "./dice.js";
+import {
+  acceptJob,
+  filterByStack,
+  filterByTitle,
+  requiredYearsFromText,
+  resolveDatePreset,
+} from "./util.js";
+
+const SCRAPERS = {
+  indeed: scrapeIndeed,
+  linkedin: scrapeLinkedIn,
+  wellfound: scrapeWellfound,
+  glassdoor: scrapeGlassdoor,
+  zip_recruiter: scrapeZipRecruiter,
+  jobright: scrapeJobright,
+  dice: scrapeDice,
+};
+
+/**
+ * Fetch remote US jobs from selected platforms (no local server).
+ * @param {{
+ *   sites: string[],
+ *   title: string,
+ *   stack: string,
+ *   count: number,
+ *   datePreset?: string,
+ *   years?: number | "",
+ *   jobType?: "fulltime" | "contract" | "",
+ *   onProgress?: (msg: string) => void
+ * }} opts
+ */
+export async function scrapeJobs({
+  sites,
+  title,
+  stack,
+  count,
+  datePreset,
+  years,
+  jobType,
+  onProgress,
+}) {
+  const titleQ = (title || "").trim();
+  const stackQ = (stack || "").trim();
+  // Empty title/stack → broad remote search on each board
+  const searchTerm = [titleQ, stackQ].filter(Boolean).join(" ").trim();
+  if (!sites?.length) {
+    throw new Error("Select at least one platform");
+  }
+
+  const preset = resolveDatePreset(datePreset);
+  const resultsWanted = Math.max(1, Math.min(200, Number(count) || 50));
+  const all = [];
+  const errors = [];
+
+  for (const site of sites) {
+    const fn = SCRAPERS[site];
+    if (!fn) {
+      errors.push(`Unknown platform: ${site}`);
+      continue;
+    }
+    try {
+      onProgress?.(`Fetching ${site}…`);
+      const jobs = await fn({
+        searchTerm,
+        title: titleQ,
+        resultsWanted,
+        datePreset: preset.id,
+        years,
+        jobType,
+        onProgress,
+      });
+      all.push(...jobs);
+      onProgress?.(`${site}: ${jobs.length} job(s)`);
+    } catch (err) {
+      const msg = err?.message || String(err);
+      errors.push(`${site}: ${msg}`);
+      onProgress?.(`${site} failed: ${msg}`);
+    }
+  }
+
+  // Title filter only when title is non-empty; stack still optional
+  let jobs = filterByTitle(all, titleQ);
+  jobs = filterByStack(jobs, stackQ);
+  for (const job of jobs) {
+    if (job.years_required == null || job.years_required === "") {
+      const parsed = requiredYearsFromText(job.description || "");
+      if (parsed != null) job.years_required = parsed;
+    }
+  }
+  jobs = jobs.filter((job) => acceptJob(job, { years, jobType }));
+
+  // One row per title + company, across all platforms (first one wins)
+  const norm = (s) =>
+    String(s || "")
+      .toLowerCase()
+      .replace(/[^a-z0-9+#]+/g, " ")
+      .trim();
+  const seen = new Set();
+  jobs = jobs.filter((j) => {
+    const title = norm(j.title);
+    const company = norm(j.company);
+    const key = title && company ? `${title}|${company}` : j.job_url;
+    if (!key) return true;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+
+  return { jobs, errors, datePreset: preset };
+}
