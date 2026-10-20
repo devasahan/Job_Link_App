@@ -5,7 +5,7 @@
  * Listings carry the full description, so the stack is checked here too.
  */
 
-import { resolveDatePreset, filterByRequest } from "./util.js";
+import { resolveDatePreset, filterByRequest, reportStoppedEarly } from "./util.js";
 
 /**
  * @param {{
@@ -60,15 +60,12 @@ export async function scrapeWellfound({
     jobType,
   });
   const searched = response.role ? `role "${response.role}"` : "all remote roles";
-  const stop = response.hitPageLimit
-    ? " (page limit reached)"
-    : response.stoppedOld
-      ? " (stopped: 3 pages in a row older than the Posted window)"
-      : "";
+  const stop = response.hitPageLimit ? " (page limit reached)" : "";
   const d = response.dropped;
   const why = d
     ? [
         d.tooOld && `${d.tooOld} older than the Posted window`,
+        d.notRemote && `${d.notRemote} on-site`,
         d.notUs && `${d.notUs} not open to US remote`,
         d.title && `${d.title} other titles`,
         d.filters && `${d.filters} failed stack/years/type`,
@@ -77,5 +74,6 @@ export async function scrapeWellfound({
   onProgress?.(
     `Wellfound (${searched}): ${response.pages ?? 0} page(s)${stop}, ${response.rawCount ?? jobs.length} scanned → ${jobs.length} matching${why.length ? ` (skipped: ${why.join(", ")})` : ""}`
   );
+  reportStoppedEarly(onProgress, "Wellfound", response);
   return jobs.slice(0, resultsWanted);
 }

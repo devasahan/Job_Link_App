@@ -14,6 +14,8 @@ export const DATE_PRESETS = {
     // Dice filters.postedDate facet values
     dicePostedDate: "ONE",
     jobrightDaysAgo: 1,
+    // Built In daysSinceUpdated: 1 | 3 | 7 | 30
+    builtinDays: 1,
   },
   "3days": {
     id: "3days",
@@ -24,6 +26,7 @@ export const DATE_PRESETS = {
     ziprecruiterDays: 5,
     dicePostedDate: "THREE",
     jobrightDaysAgo: 3,
+    builtinDays: 3,
   },
 };
 
@@ -31,13 +34,18 @@ export function resolveDatePreset(id) {
   return DATE_PRESETS[id] || DATE_PRESETS.today;
 }
 
+export const BLOCK_TAG_RE =
+  /<\/?(?:p|div|li|ul|ol|br|h[1-6]|tr|td|th|table|section|article|header|footer|blockquote|pre|dd|dt)\b[^>]*>/gi;
+
 export function sleep(ms) {
   return new Promise((r) => setTimeout(r, ms));
 }
 
 export function stripHtml(html) {
   if (!html) return "";
-  const doc = new DOMParser().parseFromString(String(html), "text/html");
+  // Keep "<li>React</li><li>AWS</li>" from becoming "ReactAWS"
+  const spaced = String(html).replace(BLOCK_TAG_RE, " $&");
+  const doc = new DOMParser().parseFromString(spaced, "text/html");
   return (doc.body.textContent || "").replace(/\s+/g, " ").trim();
 }
 
@@ -113,6 +121,13 @@ export function withinHours(datePosted, hoursOld) {
 export function filterByStack(jobs, stack) {
   if (!String(stack || "").trim()) return jobs;
   return jobs.filter((j) => globalThis.jbStackMatches(j, stack));
+}
+
+/** A site tab that stopped partway (blocked, timed out) still returns its jobs: say so. */
+export function reportStoppedEarly(onProgress, site, response) {
+  if (response?.error && response.jobs?.length) {
+    onProgress?.(`${site} stopped early, results may be incomplete: ${response.error}`);
+  }
 }
 
 /** Keep jobs whose date_posted is within hoursOld (when a parseable date exists). */

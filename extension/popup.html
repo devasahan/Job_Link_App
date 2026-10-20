@@ -18,6 +18,10 @@
     <form id="fetch-form" autocomplete="off">
       <fieldset class="platforms">
         <legend>Platforms</legend>
+        <div class="pick">
+          <button type="button" class="link" data-pick="all">All</button>
+          <button type="button" class="link" data-pick="none">None</button>
+        </div>
         <label class="check">
           <input type="checkbox" name="site" value="linkedin" checked />
           LinkedIn <span class="hint">(remote US)</span>
@@ -45,6 +49,34 @@
         <label class="check">
           <input type="checkbox" name="site" value="dice" checked />
           Dice
+        </label>
+        <label class="check">
+          <input type="checkbox" name="site" value="himalayas" checked />
+          Himalayas
+        </label>
+        <label class="check">
+          <input type="checkbox" name="site" value="jobicy" checked />
+          Jobicy
+        </label>
+        <label class="check">
+          <input type="checkbox" name="site" value="jobspresso" checked />
+          Jobspresso
+        </label>
+        <label class="check">
+          <input type="checkbox" name="site" value="builtin" checked />
+          Built In
+        </label>
+        <label class="check">
+          <input type="checkbox" name="site" value="workatastartup" />
+          <span>Work at a Startup <span class="hint">(sign in)</span></span>
+        </label>
+        <label class="check">
+          <input type="checkbox" name="site" value="turing" />
+          <span>Turing <span class="hint">(contract)</span></span>
+        </label>
+        <label class="check">
+          <input type="checkbox" name="site" value="hackernews" checked />
+          HN Who's hiring
         </label>
       </fieldset>
 

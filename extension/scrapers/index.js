@@ -5,6 +5,13 @@ import { scrapeGlassdoor } from "./glassdoor.js";
 import { scrapeZipRecruiter } from "./ziprecruiter.js";
 import { scrapeJobright } from "./jobright.js";
 import { scrapeDice } from "./dice.js";
+import { scrapeHimalayas } from "./himalayas.js";
+import { scrapeJobicy } from "./jobicy.js";
+import { scrapeHackerNews } from "./hackernews.js";
+import { scrapeBuiltin } from "./builtin.js";
+import { scrapeJobspresso } from "./jobspresso.js";
+import { scrapeWorkAtAStartup } from "./workatastartup.js";
+import { scrapeTuring } from "./turing.js";
 import {
   acceptJob,
   filterByTitle,
@@ -20,6 +27,13 @@ const SCRAPERS = {
   zip_recruiter: scrapeZipRecruiter,
   jobright: scrapeJobright,
   dice: scrapeDice,
+  himalayas: scrapeHimalayas,
+  jobicy: scrapeJobicy,
+  hackernews: scrapeHackerNews,
+  builtin: scrapeBuiltin,
+  jobspresso: scrapeJobspresso,
+  workatastartup: scrapeWorkAtAStartup,
+  turing: scrapeTuring,
 };
 
 /**
@@ -106,7 +120,8 @@ export async function scrapeJobs({
   jobs = jobs.filter((j) => {
     const title = norm(j.title);
     const company = norm(j.company);
-    const key = title && company ? `${title}|${company}` : j.job_url;
+    // Turing lists every role under its own name: there the link is the identity
+    const key = title && company && j.site !== "turing" ? `${title}|${company}` : j.job_url;
     if (!key) return true;
     if (seen.has(key)) return false;
     seen.add(key);

@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "JobBridge Fetch",
   "version": "1.12.0",
-  "description": "Fetch remote US jobs from LinkedIn, Indeed, Wellfound, Glassdoor, ZipRecruiter, Jobright, and Dice, then download Excel.",
+  "description": "Fetch remote US jobs from 14 boards (LinkedIn, Indeed, Wellfound, Dice, Himalayas, HN Who's hiring and more), then download Excel.",
   "action": {
     "default_popup": "popup.html",
     "default_title": "JobBridge Fetch",
@@ -43,7 +43,14 @@
     "https://www.jobright.ai/*",
     "https://swan-api.jobright.ai/*",
     "https://www.dice.com/*",
-    "https://dice.com/*"
+    "https://dice.com/*",
+    "https://himalayas.app/*",
+    "https://jobicy.com/*",
+    "https://hn.algolia.com/*",
+    "https://builtin.com/*",
+    "https://jobspresso.co/*",
+    "https://www.workatastartup.com/*",
+    "https://work.turing.com/*"
   ],
   "declarative_net_request": {
     "rule_resources": [

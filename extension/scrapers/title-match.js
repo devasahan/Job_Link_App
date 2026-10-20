@@ -11,7 +11,10 @@
     [/\bdev ops\b/g, "devops"],
     [/\bartificial intelligence\b/g, "ai"],
     [/\bmachine learning\b/g, "ml"],
-    [/\b(react|node|vue|next|nest|express|angular)(?: ?js)\b/g, "$1"],
+    [/\b(react|node|vue|angular)(?: ?js)\b/g, "$1"],
+    // Next/Nest/Express are everyday words: keep the .js form distinct
+    [/\b(next|nest|express)(?: ?js)\b/g, "$1js"],
+    [/\bobjective c\b/g, "objectivec"],
     [/\bgolang\b/g, "go"],
   ];
 
@@ -25,12 +28,16 @@
     swe: "software engineer",
     postgresql: "postgres",
     k8s: "kubernetes",
-    dotnet: "net",
+    springboot: "spring boot",
   };
 
   function normalize(text) {
     let s = String(text || "")
       .toLowerCase()
+      // ".NET" / "ASP.NET" before punctuation goes ("net" alone is a word)
+      .replace(/\.net\b/g, " dotnet")
+      // "React+Redux" is two words; "C++" stays one
+      .replace(/([a-z])\+(?=[a-z])/g, "$1 ")
       .replace(/[^a-z0-9+#]+/g, " ")
       .trim();
     s = s
@@ -75,10 +82,15 @@
     const words = new Set(
       normalize(`${job?.title || ""} ${job?.description || ""}`).split(" ")
     );
-    return tokens.every((t) => words.has(t));
+    // "Python3", "C++17": the word plus a version number
+    const versioned = (t) =>
+      [...words].some((w) => w.startsWith(t) && /^\d+$/.test(w.slice(t.length)));
+    return tokens.every((t) => words.has(t) || versioned(t));
   }
 
   globalThis.jbTitleMatches = jbTitleMatches;
   globalThis.jbTitleQueryTokens = queryTokens;
+  /** All normalized words, 1-letter ones included ("C Developer" → c, developer). */
+  globalThis.jbNormalizeWords = (text) => normalize(text).split(" ").filter(Boolean);
   globalThis.jbStackMatches = jbStackMatches;
 })();

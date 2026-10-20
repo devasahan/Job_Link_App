@@ -10,7 +10,13 @@ const STORAGE_KEYS = [
   "date_preset",
   "years",
   "job_type",
+  "known_sites",
 ];
+
+// Boards the popup had before known_sites was saved
+const FIRST_SITES = ["linkedin", "indeed", "wellfound", "glassdoor", "zip_recruiter", "jobright", "dice"];
+
+const siteBoxes = () => [...form.querySelectorAll('input[name="site"]')];
 
 function setStatus(message, kind = "") {
   statusEl.textContent = message || "";
@@ -38,11 +44,22 @@ async function restoreForm() {
     form.years.value = String(saved.years);
   }
   if (Array.isArray(saved.sites) && saved.sites.length) {
-    form.querySelectorAll('input[name="site"]').forEach((el) => {
-      el.checked = saved.sites.includes(el.value);
+    const known = Array.isArray(saved.known_sites) ? saved.known_sites : FIRST_SITES;
+    // Boards added since the last save keep their default (ticked)
+    siteBoxes().forEach((el) => {
+      if (known.includes(el.value)) el.checked = saved.sites.includes(el.value);
     });
   }
 }
+
+form.querySelectorAll("[data-pick]").forEach((button) => {
+  button.addEventListener("click", () => {
+    const all = button.dataset.pick === "all";
+    siteBoxes().forEach((el) => {
+      el.checked = all;
+    });
+  });
+});
 
 form.addEventListener("submit", async (event) => {
   event.preventDefault();
@@ -80,6 +97,7 @@ form.addEventListener("submit", async (event) => {
     date_preset: datePreset,
     years,
     job_type: jobType,
+    known_sites: siteBoxes().map((el) => el.value),
     pendingFetch: { title, stack, count, sites, datePreset, years, jobType },
   });
 

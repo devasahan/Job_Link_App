@@ -90,7 +90,7 @@ const ROLE_PAGE_1 = listing(
           acceptedRemoteLocationNames: { type: "json", json: ["North America"] },
           locationNames: { type: "json", json: ["Austin"] },
           liveStartAt: nowS - 2 * HOUR,
-          description: "Go services",
+          description: "Go services. 2+ years of experience.",
           yearsExperienceMin: 3,
         },
       ],
@@ -99,7 +99,7 @@ const ROLE_PAGE_1 = listing(
 );
 
 const ROLE_PAGE_2 = listing({ page: 2, remote: true, role: "software-engineer" }, 3, [
-  { id: "3", name: "Initech", jobs: [{ id: "201", title: "Software Engineer II", jobType: null }] },
+  { id: "3", name: "Initech", jobs: [{ id: "201", title: "Software Engineer II", jobType: null, description: "Rust services" }] },
 ]);
 
 const TAXONOMY = page({
@@ -116,6 +116,7 @@ function fakeSite(routes) {
     const path = url.replace(BASE, "");
     calls.push(path);
     const route = routes[path] || { status: 404, html: "<html>Not found</html>" };
+    if (route.throws) throw route.throws;
     return {
       ok: (route.status || 200) < 400,
       status: route.status || 200,
@@ -209,10 +210,15 @@ test("a title that isn't a Wellfound role searches every remote role", async () 
   const remote = listing({ page: 1, remote: true }, 1, [
     { id: "9", name: "Hooli", jobs: [{ id: "901", title: "Data Wizard" }, { id: "902", title: "Chef" }] },
   ]);
+  const errorPage = `<html><script id="__NEXT_DATA__" type="application/json">${JSON.stringify({
+    page: "/_error",
+    props: { pageProps: { apolloState: { data: { ROOT_QUERY: {} } } } },
+  })}</script></html>`;
   const calls = fakeSite({
     "/browse/remote-tech-jobs": { html: TAXONOMY },
-    // Unknown role served as a different search: not our role
-    "/role/r/data-wizard": { html: page(remote) },
+    // Unknown roles redirect (303) elsewhere, or render the error page
+    "/role/r/data-wizard": { html: page(remote), url: `${BASE}/remote` },
+    "/role/r/wizard": { html: errorPage },
     "/remote": { html: page(remote) },
   });
   const r = await run({ title: "Data Wizard" });
@@ -286,23 +292,25 @@ test("the extension asks the background for Wellfound with title + stack and fil
 test("skipped jobs are counted by reason", async () => {
   fakeSite(ROLE_SITE);
   const r = await run({ title: "Software Engineer" });
-  assert.deepEqual(r.dropped, { notUs: 1, tooOld: 1, title: 1, filters: 0 });
+  assert.deepEqual(r.dropped, { notRemote: 0, notUs: 1, tooOld: 1, title: 1, filters: 0 });
 });
 
-test("three pages in a row older than the window end the scrape", async () => {
-  const stale = (n) =>
-    listing({ page: n, remote: true, role: "software-engineer" }, 9, [
-      { id: `s${n}`, name: `Old ${n}`, jobs: [{ id: `old${n}`, title: "Software Engineer", liveStartAt: nowS - 40 * 24 * HOUR }] },
+test("listings aren't date-sorted: fresh jobs on later pages are still found", async () => {
+  const at = (n, liveStartAt) =>
+    listing({ page: n, remote: true, role: "software-engineer" }, 6, [
+      { id: `c${n}`, name: `Co ${n}`, jobs: [{ id: `j${n}`, title: "Software Engineer", liveStartAt }] },
     ]);
   const routes = { "/browse/remote-tech-jobs": { html: TAXONOMY } };
-  routes["/role/r/software-engineer"] = { html: page(stale(1)) };
-  for (let n = 2; n <= 9; n++) routes[`/role/r/software-engineer?page=${n}`] = { html: page(stale(n)) };
+  routes["/role/r/software-engineer"] = { html: page(at(1, nowS - 40 * 24 * HOUR)) };
+  for (let n = 2; n <= 6; n++) {
+    const fresh = n === 4 || n === 5;
+    routes[`/role/r/software-engineer?page=${n}`] = { html: page(at(n, fresh ? nowS - HOUR : nowS - 40 * 24 * HOUR)) };
+  }
   const calls = fakeSite(routes);
   const r = await run({ title: "Software Engineer" });
-  assert.equal(r.stoppedOld, true);
-  assert.equal(r.pages, 3);
-  assert.equal(calls.at(-1), "/role/r/software-engineer?page=3");
-  assert.equal(r.dropped.tooOld, 3);
+  assert.deepEqual(r.jobs.map((j) => j.company), ["Co 4", "Co 5"]);
+  assert.equal(r.pages, 6, "stops at pageCount");
+  assert.equal(calls.at(-1), "/role/r/software-engineer?page=6");
 });
 
 test("older Apollo references ({type: 'id'}) still link jobs to companies", async () => {
@@ -325,4 +333,250 @@ test("a DataDome block page served with 200 is reported", async () => {
   });
   const r = await run({ title: "" });
   assert.match(r.error, /security check/);
+});
+
+/** The same role pages, with the search args written in other shapes. */
+function rekey(cache, key) {
+  const talent = cache.ROOT_QUERY.talent;
+  const [old] = Object.keys(talent).filter((k) => k.startsWith("seoLandingPageJobSearchResults"));
+  talent[key] = talent[old];
+  delete talent[old];
+  return cache;
+}
+
+test("role and page are read from nested or Apollo 3 search keys", async () => {
+  for (const shape of [
+    (n) => `seoLandingPageJobSearchResults(${JSON.stringify({ filterConfigurationInput: { page: n, remote: true, roleSlug: "software-engineer" } })})`,
+    (n) => `seoLandingPageJobSearchResults:${JSON.stringify({ page: n, role: "software-engineer" })}`,
+    () => "seoLandingPageJobSearchResults",
+  ]) {
+    const p1 = rekey(structuredClone(ROLE_PAGE_1), shape(1));
+    const p2 = rekey(structuredClone(ROLE_PAGE_2), shape(2));
+    fakeSite({
+      ...ROLE_SITE,
+      "/role/r/software-engineer": { html: page(p1) },
+      "/role/r/software-engineer?page=2": { html: page(p2) },
+    });
+    const r = await run({ title: "Software Engineer" });
+    assert.equal(r.role, "software-engineer", shape(1));
+    assert.equal(r.jobs.length, 3, shape(1));
+  }
+});
+
+test("a role page that names a different role is not used", async () => {
+  const other = listing({ page: 1, remote: true, role: "product-designer" }, 1, [
+    { id: "8", name: "Wrong", jobs: [{ id: "801", title: "Software Engineer" }] },
+  ]);
+  const remote = listing({ page: 1, remote: true }, 1, [
+    { id: "9", name: "Right", jobs: [{ id: "901", title: "Software Engineer" }] },
+  ]);
+  fakeSite({
+    "/browse/remote-tech-jobs": { status: 500, html: "" },
+    "/role/r/software-engineer": { html: page(other) },
+    "/remote": { html: page(remote) },
+  });
+  const r = await run({ title: "Software Engineer" });
+  assert.deepEqual(r.jobs.map((j) => j.company), ["Right"]);
+});
+
+test("only the page's own companies' jobs are read", async () => {
+  const cache = structuredClone(ROLE_PAGE_2);
+  // A job cached by some other query on the page
+  cache["JobListingSearchResult:999"] = {
+    __typename: "JobListingSearchResult", id: "999", title: "Software Engineer", slug: "x",
+    remote: true, liveStartAt: nowS, acceptedRemoteLocationNames: [], jobType: "full-time",
+  };
+  fakeSite({ ...ROLE_SITE, "/role/r/software-engineer?page=2": { html: page(cache) } });
+  const r = await run({ title: "Software Engineer" });
+  assert.ok(!r.jobs.some((j) => j.job_url.includes("/999-")));
+});
+
+test("on-site kinds are not remote; remote kinds are", async () => {
+  const cache = listing({ page: 1, remote: true, role: "software-engineer" }, 1, [
+    {
+      id: "1",
+      name: "Kinds",
+      jobs: [
+        { id: "1", title: "Software Engineer A", remoteConfig: { kind: "ONSITE" } },
+        { id: "2", title: "Software Engineer B", remoteConfig: { kind: "ONSITE", wfhFlexible: true } },
+        { id: "3", title: "Software Engineer C", remote: false, remoteConfig: { kind: "NO_REMOTE" } },
+        { id: "4", title: "Software Engineer D", remote: undefined, remoteConfig: { kind: "REMOTE_ONLY" } },
+        { id: "5", title: "Software Engineer E", remote: false },
+      ],
+    },
+  ]);
+  fakeSite({ "/browse/remote-tech-jobs": { html: TAXONOMY }, "/role/r/software-engineer": { html: page(cache) } });
+  const r = await run({ title: "Software Engineer" });
+  assert.deepEqual(r.jobs.map((j) => j.title), ["Software Engineer B", "Software Engineer D"]);
+  assert.equal(r.dropped.notRemote, 3);
+});
+
+test("remote limited to a US state or city counts as US", async () => {
+  const where = (id, list) => ({ id, title: `Software Engineer ${id}`, acceptedRemoteLocationNames: list });
+  const cache = listing({ page: 1, remote: true, role: "software-engineer" }, 1, [
+    {
+      id: "1",
+      name: "Geo",
+      jobs: [
+        where("1", ["California"]),
+        where("2", ["Portland, OR"]),
+        where("3", ["New York City"]),
+        where("4", ["London, UK"]),
+        where("5", ["Canada"]),
+        where("6", ["Toronto, ON"]),
+      ],
+    },
+  ]);
+  fakeSite({ "/browse/remote-tech-jobs": { html: TAXONOMY }, "/role/r/software-engineer": { html: page(cache) } });
+  const r = await run({ title: "Software Engineer" });
+  assert.deepEqual(r.jobs.map((j) => j.title.split(" ").at(-1)), ["1", "2", "3"]);
+});
+
+test("a long remote-location list stays short in the sheet", async () => {
+  const many = ["Alabama", "Alaska", "Arizona", "Arkansas", "California"];
+  const cache = listing({ page: 1, remote: true, role: "software-engineer" }, 1, [
+    { id: "1", name: "Many", jobs: [{ id: "1", title: "Software Engineer", acceptedRemoteLocationNames: many }] },
+  ]);
+  fakeSite({ "/browse/remote-tech-jobs": { html: TAXONOMY }, "/role/r/software-engineer": { html: page(cache) } });
+  const r = await run({ title: "Software Engineer" });
+  assert.equal(r.jobs[0].location, "Remote (Alabama, Alaska, Arizona, …)");
+});
+
+test("role list picks exact words, not prefixes", async () => {
+  const roles = (list) =>
+    page(Object.fromEntries(list.map(([slug, name], i) => [
+      `SeoRoleKeyword:${i}`, { __typename: "SeoRoleKeyword", slug, displayName: name },
+    ])));
+  const cases = [
+    ["JavaScript Developer", [["java-developer", "Java Developer"], ["javascript-developer", "JavaScript Developer"]], "javascript-developer"],
+    ["Rust Developer", [["c-developer", "C Developer"]], "rust-developer"],
+    ["Software Engineering Manager", [["software-engineer", "Software Engineer"], ["engineering-manager", "Engineering Manager"]], "engineering-manager"],
+    ["Software Engineering Manager", [["engineering-manager", "Engineering Manager"], ["software-engineer", "Software Engineer"]], "engineering-manager"],
+  ];
+  for (const [title, list, want] of cases) {
+    const jobPage = listing({ page: 1, remote: true, role: want }, 1, [
+      { id: "1", name: "Co", jobs: [{ id: "1", title }] },
+    ]);
+    const calls = fakeSite({
+      "/browse/remote-tech-jobs": { html: roles(list) },
+      [`/role/r/${want}`]: { html: page(jobPage) },
+    });
+    const r = await run({ title });
+    assert.equal(r.role, want, `${title} → ${calls.join(" ")}`);
+  }
+});
+
+test("yearsExperienceMin 0 doesn't hide the years in the description", async () => {
+  const cache = listing({ page: 1, remote: true, role: "software-engineer" }, 1, [
+    { id: "1", name: "Y", jobs: [{ id: "1", title: "Software Engineer", yearsExperienceMin: 0, description: "5+ years of experience" }] },
+  ]);
+  fakeSite({ "/browse/remote-tech-jobs": { html: TAXONOMY }, "/role/r/software-engineer": { html: page(cache) } });
+  const r = await run({ title: "Software Engineer" });
+  assert.equal(r.jobs[0].years_required, 5);
+});
+
+test("a network error after page 1 keeps the jobs found so far", async () => {
+  fakeSite({ ...ROLE_SITE, "/role/r/software-engineer?page=2": { throws: new TypeError("Failed to fetch") } });
+  const r = await run({ title: "Software Engineer" });
+  assert.equal(r.jobs.length, 2);
+  assert.match(r.error, /request failed/);
+  const timeout = Object.assign(new Error("signal timed out"), { name: "TimeoutError" });
+  fakeSite({ ...ROLE_SITE, "/role/r/software-engineer?page=2": { throws: timeout } });
+  assert.match((await run({ title: "Software Engineer" })).error, /timed out/);
+});
+
+test("a page with job data is fine even if it mentions DataDome", async () => {
+  const html = page(ROLE_PAGE_1).replace(
+    "</body>",
+    '<script src="https://ddm.wellfound.com/tags.js"></script><!-- geo.captcha-delivery.com --></body>'
+  );
+  fakeSite({ ...ROLE_SITE, "/role/r/software-engineer": { html } });
+  const r = await run({ title: "Software Engineer" });
+  assert.equal(r.error, undefined);
+  assert.ok(r.jobs.length);
+});
+
+test("an app-router page says the format moved", async () => {
+  fakeSite({ "/remote": { html: '<html><script>self.__next_f.push([1,"x"])</script></html>' } });
+  assert.match((await run({ title: "" })).error, /new page format/);
+});
+
+test("a stop partway is reported in the run log", async () => {
+  globalThis.chrome = {
+    runtime: {
+      sendMessage: async () => ({
+        jobs: [{ title: "Software Engineer", company: "A", description: "", date_posted: "", years_required: "" }],
+        rawCount: 1,
+        pages: 1,
+        role: "software-engineer",
+        error: "Wellfound security check is open in a tab. Complete it, then press OK again.",
+      }),
+    },
+  };
+  const progress = [];
+  const { jobs } = await scrapeJobs({ sites: ["wellfound"], title: "Software Engineer", count: 5, onProgress: (m) => progress.push(m) });
+  assert.equal(jobs.length, 1);
+  assert.ok(progress.some((m) => /Wellfound stopped early, results may be incomplete: Wellfound security check/.test(m)));
+});
+
+test("Count counts only full matches: paging goes on past non-matches", async () => {
+  const calls = fakeSite(ROLE_SITE);
+  const r = await run({ title: "Software Engineer", stack: "Rust", resultsWanted: 1 });
+  assert.deepEqual(r.jobs.map((j) => j.title), ["Software Engineer II"]);
+  assert.ok(calls.includes("/role/r/software-engineer?page=2"));
+});
+
+test("the role list finds the role inside a longer title, with no guessing first", async () => {
+  const roles = page({
+    "SeoRoleKeyword:1": { __typename: "SeoRoleKeyword", slug: "frontend-engineer", displayName: "Frontend Engineer" },
+  });
+  const jobPage = listing({ page: 1, remote: true, role: "frontend-engineer" }, 1, [
+    { id: "1", name: "Co", jobs: [{ id: "1", title: "Senior React Frontend Engineer" }] },
+  ]);
+  const calls = fakeSite({
+    "/browse/remote-tech-jobs": { html: roles },
+    "/role/r/frontend-engineer": { html: page(jobPage) },
+  });
+  const r = await run({ title: "Senior React Frontend Engineer" });
+  assert.equal(r.role, "frontend-engineer");
+  assert.equal(calls[1], "/role/r/frontend-engineer");
+});
+
+test("the end of the listing is found without pageCount", async () => {
+  const at = (n) =>
+    listing({ page: n, remote: true, role: "software-engineer" }, null, [
+      { id: `c${n}`, name: `Co ${n}`, jobs: [{ id: `j${n}`, title: "Software Engineer" }] },
+    ]);
+  const base = { "/browse/remote-tech-jobs": { html: TAXONOMY }, "/role/r/software-engineer": { html: page(at(1)) } };
+  // 1) Redirected back to page 1
+  let calls = fakeSite({
+    ...base,
+    "/role/r/software-engineer?page=2": { html: page(at(1)), url: `${BASE}/role/r/software-engineer` },
+  });
+  let r = await run({ title: "Software Engineer" });
+  assert.equal(r.pages, 1);
+  assert.equal(calls.length, 3);
+  // 2) Page 1 served at ?page=2 with no redirect
+  calls = fakeSite({ ...base, "/role/r/software-engineer?page=2": { html: page(at(1)) } });
+  r = await run({ title: "Software Engineer" });
+  assert.equal(r.pages, 1);
+  assert.equal(calls.length, 3);
+  // 3) No page argument at all: a page of only repeats ends it
+  const plain = (cache) => rekey(cache, "seoLandingPageJobSearchResults");
+  calls = fakeSite({
+    "/browse/remote-tech-jobs": { html: TAXONOMY },
+    "/role/r/software-engineer": { html: page(plain(at(1))) },
+    "/role/r/software-engineer?page=2": { html: page(plain(at(2))) },
+    "/role/r/software-engineer?page=3": { html: page(plain(at(2))) },
+  });
+  r = await run({ title: "Software Engineer" });
+  assert.equal(r.pages, 2);
+  assert.equal(calls.length, 4);
+});
+
+test("Wellfound's years field and the description: the higher wins", async () => {
+  fakeSite(ROLE_SITE);
+  const r = await run({ title: "Software Engineer" });
+  const globex = r.jobs.find((j) => j.company === "Globex");
+  assert.equal(globex.years_required, 3, "yearsExperienceMin 3 beats '2+ years' in the text");
 });

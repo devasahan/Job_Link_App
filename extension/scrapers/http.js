@@ -27,3 +27,22 @@ export function blockedError(site, status, bodyText = "") {
     `${site} HTTP ${status}${snip ? `: ${snip}` : ""}`
   );
 }
+
+/**
+ * Parse a JSON API response. A block page is only suspected when the body
+ * isn't JSON: job text inside real JSON can say "access denied".
+ */
+export async function readJson(res, site, label = site) {
+  const raw = (await res.text()).replace(/[\u0000-\u001f]/g, (c) => (/[\n\r\t]/.test(c) ? " " : ""));
+  if (res.status === 403 || res.status === 429 || res.status === 503) {
+    throw blockedError(site, res.status, raw);
+  }
+  let data;
+  try {
+    data = JSON.parse(raw);
+  } catch {
+    if (isBlockedResponse(res.status, raw)) throw blockedError(site, res.status, raw);
+    throw new Error(`${label} returned non-JSON (HTTP ${res.status})`);
+  }
+  return data;
+}

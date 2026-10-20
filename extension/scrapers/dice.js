@@ -6,7 +6,7 @@
  * keyword search (title + stack).
  */
 
-import { resolveDatePreset, filterByRequest } from "./util.js";
+import { resolveDatePreset, filterByRequest, reportStoppedEarly } from "./util.js";
 
 /**
  * @param {{
@@ -63,5 +63,6 @@ export async function scrapeDice({
   onProgress?.(
     `Dice: ${response.rawCount ?? jobs.length} raw → ${jobs.length} matching title`
   );
+  reportStoppedEarly(onProgress, "Dice", response);
   return jobs.slice(0, resultsWanted);
 }

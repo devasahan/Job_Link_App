@@ -5,7 +5,7 @@
  * Searched with title + stack; Glassdoor's keyword search matches the stack.
  */
 
-import { resolveDatePreset, filterByRequest } from "./util.js";
+import { resolveDatePreset, filterByRequest, reportStoppedEarly } from "./util.js";
 
 /**
  * @param {{
@@ -61,5 +61,6 @@ export async function scrapeGlassdoor({
   onProgress?.(
     `Glassdoor: ${response.rawCount ?? jobs.length} raw → ${jobs.length} matching title`
   );
+  reportStoppedEarly(onProgress, "Glassdoor", response);
   return jobs.slice(0, resultsWanted);
 }

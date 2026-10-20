@@ -54,5 +54,32 @@
       "excludedInitiatorDomains": ["jobright.ai"],
       "resourceTypes": ["xmlhttprequest", "other"]
     }
+  },
+  {
+    "id": 8,
+    "priority": 1,
+    "action": {
+      "type": "modifyHeaders",
+      "requestHeaders": [
+        {
+          "header": "User-Agent",
+          "operation": "set",
+          "value": "JobBridgeFetch/1.12 (personal job search)"
+        },
+        {
+          "header": "Origin",
+          "operation": "remove"
+        },
+        {
+          "header": "Referer",
+          "operation": "remove"
+        }
+      ]
+    },
+    "condition": {
+      "urlFilter": "||himalayas.app/jobs/api",
+      "excludedInitiatorDomains": ["himalayas.app"],
+      "resourceTypes": ["xmlhttprequest", "other"]
+    }
   }
 ]

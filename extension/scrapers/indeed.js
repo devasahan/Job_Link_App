@@ -14,7 +14,7 @@ import {
   requiredYearsFromText,
   withinHours,
 } from "./util.js";
-import { blockedError, isBlockedResponse } from "./http.js";
+import { readJson } from "./http.js";
 
 const API_URL = "https://apis.indeed.com/graphql";
 const BASE_URL = "https://www.indeed.com";
@@ -79,9 +79,10 @@ function indeedJobTypeKey(jobType) {
 }
 
 function buildQuery(whatTerm, cursor, jobType) {
-  // Escape for the GraphQL string; Indeed needs every word (title + stack)
-  const escaped = (whatTerm || "").replace(/"/g, '\\"').trim();
-  const what = escaped ? `what: "${escaped}"` : "";
+  // Indeed needs every word (title + stack). JSON string escaping is valid
+  // GraphQL string escaping, so quotes and backslashes in the input are safe.
+  const term = (whatTerm || "").trim();
+  const what = term ? `what: ${JSON.stringify(term)}` : "";
   const location = `location: { where: "United States", radius: 100, radiusUnit: MILES }`;
   const cursorPart = cursor ? `cursor: "${cursor}"` : "";
   const typeKeys = ["DSQF7", indeedJobTypeKey(jobType)]
@@ -146,15 +147,9 @@ export async function scrapeIndeed({
       headers: HEADERS,
       body: JSON.stringify({ query }),
     });
-    const raw = await res.text();
-    if (!res.ok || isBlockedResponse(res.status, raw)) {
-      throw blockedError("indeed", res.status, raw);
-    }
-    let data;
-    try {
-      data = JSON.parse(raw);
-    } catch {
-      throw new Error("Indeed returned non-JSON (blocked or unexpected response)");
+    const data = await readJson(res, "indeed", "Indeed");
+    if (!res.ok) {
+      throw new Error(`Indeed HTTP ${res.status}: ${data?.errors?.[0]?.message || "request rejected"}`);
     }
     const search = data?.data?.jobSearch;
     if (!search) {

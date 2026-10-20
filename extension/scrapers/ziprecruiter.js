@@ -6,7 +6,7 @@
  * keyword search (title + stack).
  */
 
-import { resolveDatePreset, filterByRequest } from "./util.js";
+import { resolveDatePreset, filterByRequest, reportStoppedEarly } from "./util.js";
 
 /**
  * @param {{
@@ -67,5 +67,6 @@ export async function scrapeZipRecruiter({
   onProgress?.(
     `ZipRecruiter: ${response.rawCount ?? jobs.length} raw → ${jobs.length} matching title`
   );
+  reportStoppedEarly(onProgress, "ZipRecruiter", response);
   return jobs.slice(0, resultsWanted);
 }

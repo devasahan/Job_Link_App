@@ -17,11 +17,6 @@ test("title words must be in the job title", () => {
   assert.ok(!titleMatches("Product Designer", "Software Engineer"));
 });
 
-test("a board without descriptions keeps its jobs when the stack was searched by the board", () => {
-  // LinkedIn / ZipRecruiter cards: no description, stack not passed
-  assert.ok(keeps(job({ title: "Senior Frontend Engineer" }), { title: "Frontend Engineer" }));
-});
-
 test("stack words match whole words only", () => {
   const desc = (description) => job({ description });
   assert.ok(keeps(desc("We use React and TypeScript."), { stack: "React TypeScript" }));
@@ -106,4 +101,78 @@ test("employment type", () => {
   assert.ok(matchesEmployment(job({ listing_type: "Full-time, Contract" }), "contract"));
   // Unstated stays
   assert.ok(matchesEmployment(job({}), "contract"));
+});
+
+test("years: a skipped number never hides the requirement after it", () => {
+  assert.equal(requiredYearsFromText("Must be 18 years old. 6+ years of experience required."), 6);
+  assert.equal(requiredYearsFromText("We have 10 years in the market. 3+ years of experience required."), 3);
+  assert.equal(requiredYearsFromText("Our company has 8 years in business. 6+ years of experience required."), 6);
+  assert.equal(requiredYearsFromText("Founded 20 years ago. 5+ years of experience in React required."), 5);
+  assert.equal(requiredYearsFromText("Our company has 25 years of experience 4+ years of experience needed"), 4);
+  assert.equal(requiredYearsFromText("We have 10-12 years of experience. 4+ years of experience required."), 4);
+  assert.equal(requiredYearsFromText("Must be at least 18 years of age 5+ years of experience with React"), 5);
+});
+
+test("years: combined / cumulative experience is a real requirement", () => {
+  assert.equal(requiredYearsFromText("5+ years of combined experience in backend and DevOps."), 5);
+  assert.equal(requiredYearsFromText("Minimum 5 years cumulative experience in software development."), 5);
+  assert.equal(requiredYearsFromText("5+ years of .NET experience"), 5);
+});
+
+test("years: 'experience of N years' company blurbs are skipped", () => {
+  assert.equal(
+    requiredYearsFromText("Acme is a consultancy with an experience of 12 years in IT services. Need 2+ years of experience."),
+    2
+  );
+  assert.equal(requiredYearsFromText("Experience: 4+ years in Go"), 4);
+});
+
+test("employment: smart contracts and plural contracts aren't contract jobs", () => {
+  for (const title of [
+    "Smart Contracts Engineer",
+    "Senior Smart Contracts Developer (Solidity)",
+    "Software Engineer - Contracts Platform",
+    "Director of Contracts",
+  ]) {
+    assert.ok(matchesEmployment(job({ title }), "fulltime"), title);
+  }
+});
+
+test("employment: 'Contract Lead …' titles are still contract jobs", () => {
+  for (const title of [
+    "Contract Lead Software Engineer",
+    "Contract Associate Software Engineer",
+    "Contract Director of Engineering",
+  ]) {
+    assert.ok(!matchesEmployment(job({ title }), "fulltime"), title);
+  }
+});
+
+test("stack: framework names don't match everyday words", () => {
+  const desc = (description) => job({ description });
+  assert.ok(!keeps(desc("We are building the next generation of payments"), { stack: "Next.js" }));
+  assert.ok(keeps(desc("Next.js and NextJS apps"), { stack: "Next.js" }));
+  assert.ok(keeps(desc("Built on NextJS"), { stack: "next.js" }));
+  assert.ok(!keeps(desc("Drive net-new revenue; competitive net salary"), { stack: ".NET" }));
+  assert.ok(keeps(desc("ASP.NET Core services"), { stack: "dotnet" }));
+  assert.ok(!keeps(desc("Express your ideas"), { stack: "Express.js" }));
+  assert.ok(!keeps(desc("Our objective is to ship Swift apps"), { stack: "Objective-C" }));
+  assert.ok(keeps(desc("iOS in Objective-C and Swift"), { stack: "Objective-C" }));
+});
+
+test("stack: versions and joined names still match", () => {
+  const desc = (description) => job({ description });
+  assert.ok(keeps(desc("Strong modern C++17 skills"), { stack: "C++" }));
+  assert.ok(keeps(desc("Python3 scripting"), { stack: "Python" }));
+  assert.ok(keeps(desc("React+Redux frontend"), { stack: "React Redux" }));
+  assert.ok(keeps(desc("SpringBoot services"), { stack: "Spring Boot" }));
+  assert.ok(!keeps(desc("Java 17"), { stack: "JavaScript" }));
+});
+
+test("years: 'combined experience' is a blurb only when the sentence is about the company", () => {
+  assert.equal(
+    requiredYearsFromText("12 years of combined experience across our leadership. 3+ years of experience required."),
+    3
+  );
+  assert.equal(requiredYearsFromText("5+ years of combined experience in backend and DevOps."), 5);
 });

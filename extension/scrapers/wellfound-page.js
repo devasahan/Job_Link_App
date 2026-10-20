@@ -10,9 +10,11 @@
  *   /role/r/<role>?page=N     remote jobs for one role (about 20 companies a page)
  *   /remote?page=N            remote jobs for every role
  *   /browse/remote-tech-jobs  the role list (SeoRoleKeyword slug + displayName)
- * A job page is /jobs/<id>-<slug>. liveStartAt is Unix seconds.
- * Past the last page Wellfound serves page 1 again. Many listings are weeks
- * old, so a 24-hour window can rightly come back nearly empty.
+ * A page's companies hang off ROOT_QUERY … seoLandingPageJobSearchResults({args})
+ * and each company (StartupResult) links its jobs (highlightedJobListings).
+ * A job page is /jobs/<id>-<slug>. liveStartAt is Unix seconds. Listings are
+ * not sorted by date, and many are weeks old, so a 24-hour window can rightly
+ * come back nearly empty. Past the last page Wellfound serves page 1 again.
  *
  * Needs title-match.js and job-filters.js loaded first.
  */
@@ -20,13 +22,25 @@
   const BASE = "https://wellfound.com";
   const BLOCKED_MSG =
     "Wellfound security check is open in a tab. Complete it, then press OK again.";
-  const FORMAT_MSG =
-    "Wellfound page format changed (no job data found in __NEXT_DATA__)";
+  const FORMAT_MSG = "Wellfound page format changed (no job data found in __NEXT_DATA__)";
+  const APP_ROUTER_MSG =
+    "Wellfound moved to a new page format (Next.js app router); the scraper needs updating";
+  const SEARCH_KEY = "seoLandingPageJobSearchResults";
   // Seniority words aren't part of Wellfound role slugs
   const SENIORITY_RE =
     /\b(?:senior|sr|snr|junior|jr|lead|staff|principal|mid|level|entry|i|ii|iii|iv|\d+)\b/gi;
-  const US_REMOTE_RE =
-    /\b(?:united states|usa?|u\.s\.a?\.?|north america|americas|worldwide|anywhere|global)\b/i;
+  const US_STATES =
+    "alabama|alaska|arizona|arkansas|california|colorado|connecticut|delaware|florida|georgia|hawaii|idaho|illinois|indiana|iowa|kansas|kentucky|louisiana|maine|maryland|massachusetts|michigan|minnesota|mississippi|missouri|montana|nebraska|nevada|new hampshire|new jersey|new mexico|new york|north carolina|north dakota|ohio|oklahoma|oregon|pennsylvania|rhode island|south carolina|south dakota|tennessee|texas|utah|vermont|virginia|washington|west virginia|wisconsin|wyoming|district of columbia|washington,? d\\.?c\\.?";
+  const US_PLACE_RE = new RegExp(
+    `\\b(?:united states|usa?|u\\.s\\.a?\\.?|north america|americas|worldwide|anywhere|everywhere|global|${US_STATES}|san francisco|bay area|los angeles|seattle|austin|boston|chicago|denver|atlanta|miami|nyc)\\b`,
+    "i"
+  );
+  // "Portland, OR": state codes are matched exactly, so "London, UK" isn't US
+  const US_STATE_CODE_RE =
+    /,\s*(?:AL|AK|AZ|AR|CA|CO|CT|DE|FL|GA|HI|ID|IL|IN|IA|KS|KY|LA|ME|MD|MA|MI|MN|MS|MO|MT|NE|NV|NH|NJ|NM|NY|NC|ND|OH|OK|OR|PA|RI|SC|SD|TN|TX|UT|VT|VA|WA|WV|WI|WY|DC)$/;
+  // remoteConfig.kind values that allow working remotely
+  const REMOTE_KINDS = /^(?:REMOTE|REMOTE_ONLY|REMOTE_OPEN|ONSITE_OR_REMOTE)$/;
+  const ONSITE_KINDS = /^(?:ONSITE|NO_REMOTE)$/;
 
   function sleep(ms) {
     return new Promise((r) => setTimeout(r, ms));
@@ -34,7 +48,7 @@
 
   function nextData(html) {
     const m = String(html || "").match(
-      /<script[^>]*\bid=["']__NEXT_DATA__["'][^>]*>([\s\S]*?)<\/script>/i
+      /<script\b[^>]*\bid=["']?__NEXT_DATA__["']?[^>]*>([\s\S]*?)<\/script>/i
     );
     if (!m) return null;
     try {
@@ -45,9 +59,14 @@
   }
 
   function apolloCache(data) {
-    const state = data?.props?.pageProps?.apolloState;
-    const cache = state?.data || state;
-    return cache && typeof cache === "object" ? cache : null;
+    const props = data?.props || {};
+    const candidates = [
+      props.pageProps?.apolloState?.data,
+      props.pageProps?.apolloState,
+      props.apolloState?.data,
+      props.pageProps?.initialApolloState,
+    ];
+    return candidates.find((c) => c && typeof c === "object" && Object.keys(c).length) || null;
   }
 
   /** Cloudflare / DataDome challenge pages (not their passive beacons). */
@@ -58,106 +77,167 @@
   }
 
   // {"__ref": "Type:id"}, or the older {type: "id", id: "Type:id"}
-  function deref(cache, v) {
-    if (!v || typeof v !== "object") return v;
-    if (typeof v.__ref === "string") return cache[v.__ref];
-    if (v.type === "id" && typeof v.id === "string" && v.id in cache) return cache[v.id];
-    return v;
+  function refKey(v) {
+    if (typeof v?.__ref === "string") return v.__ref;
+    if (v?.type === "id" && typeof v.id === "string") return v.id;
+    return null;
   }
-  const refKey = (v) =>
-    typeof v?.__ref === "string" ? v.__ref : v?.type === "id" ? v.id : null;
+  function deref(cache, v) {
+    if (!v || typeof v !== "object") return v ?? null;
+    const key = refKey(v);
+    return key ? cache[key] || null : v;
+  }
 
   // ["A"], or {type: "json", json: ["A"]} once the client has hydrated
   function names(value) {
-    const list = Array.isArray(value)
-      ? value
-      : Array.isArray(value?.json)
-        ? value.json
-        : [];
+    const list = Array.isArray(value) ? value : Array.isArray(value?.json) ? value.json : [];
     return list.filter((x) => typeof x === "string" && x.trim()).map((x) => x.trim());
   }
 
-  /**
-   * The ROOT_QUERY field "seoLandingPageJobSearchResults({...args})" says which
-   * role and page Wellfound actually served. Breadth-first: it may be nested.
-   */
-  function searchMeta(cache) {
-    const queue = cache.ROOT_QUERY ? [cache.ROOT_QUERY] : [];
-    const seen = new Set();
-    while (queue.length && seen.size < 500) {
-      const node = queue.shift();
-      if (!node || typeof node !== "object" || seen.has(node)) continue;
-      seen.add(node);
-      for (const [key, value] of Object.entries(node)) {
-        if (key.startsWith("seoLandingPageJobSearchResults")) {
-          let args = {};
-          const m = key.match(/\((\{[\s\S]*\})\)\s*$/);
-          if (m) {
-            try {
-              args = JSON.parse(m[1]);
-            } catch {
-              args = {};
-            }
-          }
-          const result = deref(cache, value) || {};
-          return { args, pageCount: Number(result.pageCount) || null };
-        }
-        const child = deref(cache, value);
-        if (child && typeof child === "object") queue.push(child);
-      }
+  /** Arguments of a cache field name: "f({...})" or Apollo 3's "f:{...}". */
+  function keyArgs(key) {
+    const open = key.search(/[({:]/);
+    if (open < 0) return {};
+    const json = key.slice(open).replace(/^\(|\)$/g, "").replace(/^:/, "");
+    try {
+      const args = JSON.parse(json);
+      return args && typeof args === "object" ? args : {};
+    } catch {
+      return {};
     }
-    return null;
   }
 
-  function jobsFromCache(cache) {
-    // Search results only link jobs from their company (StartupResult)
+  /** First value under any of `names`, anywhere in a (small) args object. */
+  function findArg(args, wanted) {
+    const queue = [args];
+    while (queue.length) {
+      const node = queue.shift();
+      if (!node || typeof node !== "object") continue;
+      for (const [k, v] of Object.entries(node)) {
+        if (wanted.includes(k) && v != null && typeof v !== "object") return v;
+        if (v && typeof v === "object") queue.push(v);
+      }
+    }
+    return undefined;
+  }
+
+  /**
+   * Every search-results field in the cache, with the role and page it was
+   * called with. Breadth-first from ROOT_QUERY: it may sit under talent.viewer.
+   */
+  function searchConnections(cache) {
+    const out = [];
+    const queue = cache.ROOT_QUERY ? [{ node: cache.ROOT_QUERY, depth: 0 }] : [];
+    const seen = new Set();
+    while (queue.length) {
+      const { node, depth } = queue.shift();
+      if (!node || typeof node !== "object" || seen.has(node) || depth > 8) continue;
+      seen.add(node);
+      for (const [key, value] of Object.entries(node)) {
+        if (key.startsWith(SEARCH_KEY)) {
+          const args = keyArgs(key);
+          const role = findArg(args, ["role", "roleSlug"]);
+          const page = findArg(args, ["page"]);
+          out.push({
+            role: role == null ? undefined : String(role),
+            page: page == null ? undefined : Number(page),
+            result: deref(cache, value) || {},
+          });
+          continue;
+        }
+        const child = deref(cache, value);
+        if (child && typeof child === "object") queue.push({ node: child, depth: depth + 1 });
+      }
+    }
+    return out;
+  }
+
+  function toJob(cache, key, node, company) {
+    const remoteConfig = deref(cache, node.remoteConfig) || {};
+    const kind = String(remoteConfig.kind || "").toUpperCase();
+    let remote = null;
+    if (ONSITE_KINDS.test(kind) && remoteConfig.wfhFlexible !== true) remote = false;
+    else if (node.remote === false || node.remote === "false") remote = false;
+    else if (node.remote === true || node.remote === "true" || REMOTE_KINDS.test(kind)) remote = true;
+
+    let postedMs = NaN;
+    const live = node.liveStartAt;
+    if (live != null && live !== "" && Number.isFinite(Number(live)) && Number(live) > 0) {
+      const n = Number(live);
+      postedMs = n < 1e12 ? n * 1000 : n;
+    } else if (typeof live === "string") {
+      postedMs = Date.parse(live);
+    }
+    const yearsMin = Number(node.yearsExperienceMin);
+    return {
+      id: String(node.id),
+      title: String(node.title).trim(),
+      company: String(company?.name || "").trim(),
+      url: node.slug
+        ? `${BASE}/jobs/${node.id}-${node.slug}`
+        : company?.slug
+          ? `${BASE}/company/${company.slug}/jobs`
+          : "",
+      remote,
+      locations: names(node.locationNames),
+      remoteIn: names(node.acceptedRemoteLocationNames),
+      jobType: String(node.jobType || "").toLowerCase().replace(/[_\s]+/g, "-"),
+      postedMs,
+      description: String(node.description || ""),
+      // 0 means "not given", not "no experience needed"
+      yearsMin: Number.isFinite(yearsMin) && yearsMin > 0 ? yearsMin : null,
+    };
+  }
+
+  const isJobNode = (key, node) =>
+    node &&
+    typeof node === "object" &&
+    /^(?:JobListingSearchResult|JobListing)$/.test(node.__typename || key.split(":")[0]) &&
+    node.id != null &&
+    node.title;
+  const isCompanyNode = (key, node) =>
+    node &&
+    typeof node === "object" &&
+    /^(?:StartupResult|Startup)$/.test(node.__typename || key.split(":")[0]);
+
+  /** The jobs this page lists: its companies' job links, else every job node. */
+  function pageJobs(cache, connection) {
+    const jobs = [];
+    const seen = new Set();
+    const add = (key, node, company) => {
+      if (!isJobNode(key || "", node)) return;
+      const id = String(node.id);
+      if (seen.has(id)) return;
+      seen.add(id);
+      jobs.push(toJob(cache, key, node, company));
+    };
+    const startups = Array.isArray(connection?.result?.startups) ? connection.result.startups : null;
+    if (startups) {
+      for (const ref of startups) {
+        const company = deref(cache, ref);
+        if (!company) continue;
+        for (const field of ["highlightedJobListings", "jobListings"]) {
+          if (!Array.isArray(company[field])) continue;
+          for (const jobRef of company[field]) add(refKey(jobRef), deref(cache, jobRef), company);
+        }
+      }
+      if (jobs.length) return jobs;
+    }
+    // Fallback: every job node, linked to its company in reverse
     const companyOf = new Map();
-    for (const node of Object.values(cache)) {
-      if (!node || typeof node !== "object" || !node.name) continue;
+    for (const [key, node] of Object.entries(cache)) {
+      if (!isCompanyNode(key, node)) continue;
       for (const field of ["highlightedJobListings", "jobListings"]) {
         if (!Array.isArray(node[field])) continue;
         for (const ref of node[field]) {
-          const key = refKey(ref);
-          if (typeof key === "string") companyOf.set(key, node);
+          const k = refKey(ref);
+          if (k && !companyOf.has(k)) companyOf.set(k, node);
         }
       }
     }
-
-    const jobs = [];
     for (const [key, node] of Object.entries(cache)) {
-      if (!node || typeof node !== "object") continue;
-      const type = node.__typename || key.split(":")[0];
-      if (type !== "JobListingSearchResult" && type !== "JobListing") continue;
-      if (node.id == null || !node.title) continue;
-      const company = deref(cache, node.startup) || companyOf.get(key) || {};
-      const remoteConfig = deref(cache, node.remoteConfig) || {};
-      const live = Number(node.liveStartAt);
-      const yearsMin = Number(node.yearsExperienceMin);
-      jobs.push({
-        id: String(node.id),
-        title: String(node.title).trim(),
-        company: String(company.name || "").trim(),
-        url: node.slug
-          ? `${BASE}/jobs/${node.id}-${node.slug}`
-          : company.slug
-            ? `${BASE}/company/${company.slug}/jobs`
-            : "",
-        remote:
-          node.remote === true ||
-          /REMOTE/.test(String(remoteConfig.kind || ""))
-            ? true
-            : node.remote === false
-              ? false
-              : null,
-        locations: names(node.locationNames),
-        remoteIn: names(node.acceptedRemoteLocationNames),
-        jobType: String(node.jobType || "").replace(/_/g, "-"),
-        // Seconds; tolerate milliseconds
-        postedMs: live > 0 ? (live < 1e12 ? live * 1000 : live) : NaN,
-        description: String(node.description || ""),
-        yearsMin:
-          node.yearsExperienceMin != null && Number.isFinite(yearsMin) ? yearsMin : null,
-      });
+      if (!isJobNode(key, node)) continue;
+      add(key, node, deref(cache, node.startup) || companyOf.get(key));
     }
     return jobs;
   }
@@ -184,87 +264,126 @@
     return { res, html: await res.text() };
   }
 
-  /** Best Wellfound role for a title: the longest role name the title contains. */
-  async function taxonomyRole(title) {
+  /** Wellfound roles whose every word is in the title, best first. */
+  async function taxonomyRoles(title) {
+    let html;
     try {
-      const { res, html } = await fetchHtml("/browse/remote-tech-jobs");
-      if (!res.ok) return "";
-      const data = nextData(html);
-      if (!data) return "";
-      let best = "";
-      let bestSize = 0;
-      const queue = [data];
-      let visited = 0;
-      while (queue.length && visited < 50000) {
-        const node = queue.pop();
-        visited += 1;
-        if (!node || typeof node !== "object") continue;
-        if (node.__typename === "SeoRoleKeyword" && node.slug && node.displayName) {
-          const size = globalThis.jbTitleQueryTokens(node.displayName).length;
-          if (size > bestSize && globalThis.jbTitleMatches(title, node.displayName)) {
-            best = String(node.slug);
-            bestSize = size;
-          }
-          continue;
-        }
-        for (const v of Object.values(node)) {
-          if (v && typeof v === "object") queue.push(v);
-        }
-      }
-      return best;
+      const page = await fetchHtml("/browse/remote-tech-jobs");
+      if (!page.res.ok) return [];
+      html = page.html;
     } catch {
-      return "";
+      return [];
     }
+    const data = nextData(html);
+    if (!data) return [];
+    const titleWords = globalThis.jbNormalizeWords(title);
+    const titleSet = new Set(titleWords);
+    const head = titleWords[titleWords.length - 1];
+    const roles = new Map();
+    const queue = [data];
+    let visited = 0;
+    while (queue.length && visited < 50000) {
+      const node = queue.pop();
+      visited += 1;
+      if (!node || typeof node !== "object") continue;
+      if (node.__typename === "SeoRoleKeyword" && node.slug && node.displayName) {
+        const words = globalThis.jbNormalizeWords(node.displayName);
+        // Exact words only: "Java" is not "JavaScript", "C" is not "Rust"
+        if (words.length && words.every((w) => titleSet.has(w))) {
+          roles.set(String(node.slug), {
+            slug: String(node.slug),
+            size: words.length,
+            headMatch: words[words.length - 1] === head,
+          });
+        }
+        continue;
+      }
+      for (const v of Object.values(node)) if (v && typeof v === "object") queue.push(v);
+    }
+    return [...roles.values()]
+      .sort(
+        (a, b) =>
+          b.size - a.size ||
+          Number(b.headMatch) - Number(a.headMatch) ||
+          a.slug.length - b.slug.length ||
+          a.slug.localeCompare(b.slug)
+      )
+      .map((r) => r.slug);
   }
 
   async function roleCandidates(title) {
     const bare = title.replace(SENIORITY_RE, " ").replace(/\s+/g, " ").trim();
-    return [...new Set([await taxonomyRole(title), slugify(title), slugify(bare)])].filter(
-      Boolean
-    );
+    const fromList = await taxonomyRoles(title);
+    return [...new Set([...fromList.slice(0, 2), slugify(title), slugify(bare)])].filter(Boolean);
   }
 
-  /** One listing page → {blocked} | {status} | {end} | {meta, jobs}. */
-  async function listingPage(path, page) {
-    const { res, html } = await fetchHtml(`${path}${page > 1 ? `?page=${page}` : ""}`);
-    if (res.status === 403 || res.status === 429 || isChallenge(html.slice(0, 20000))) {
-      return { blocked: true, status: res.status };
+  /**
+   * One listing page →
+   *   {blocked} | {notFound} | {netError} | {status} | {formatError} | {end} | {jobs, connection}
+   */
+  async function listingPage(path, page, role) {
+    const want = `${path}${page > 1 ? `?page=${page}` : ""}`;
+    let res;
+    let html;
+    try {
+      ({ res, html } = await fetchHtml(want));
+    } catch (err) {
+      const timeout = /abort|timeout/i.test(`${err?.name} ${err?.message}`);
+      return { netError: timeout ? "Wellfound request timed out" : `Wellfound request failed (${err?.message || err})` };
     }
-    if (!res.ok) return { status: res.status };
-    if (page > 1 && res.url) {
-      const served = new URL(res.url).searchParams.get("page");
-      if (served !== String(page)) return { end: true };
-    }
+    if (res.status === 404 || res.status === 410) return { notFound: true };
     const data = nextData(html);
     const cache = data && apolloCache(data);
-    if (!cache) return { status: res.status, noData: true };
-    const meta = searchMeta(cache);
-    if (page > 1 && meta && Number(meta.args.page || 1) !== page) return { end: true };
-    return { meta, jobs: jobsFromCache(cache) };
+    if (!cache) {
+      if (res.status === 403 || res.status === 429 || isChallenge(html.slice(0, 20000))) {
+        return { blocked: true };
+      }
+      if (!res.ok) return { status: res.status };
+      return { formatError: /self\.__next_f\.push/.test(html) ? APP_ROUTER_MSG : FORMAT_MSG };
+    }
+    if (data.page === "/_error") return { notFound: true };
+    const finalUrl = res.url ? new URL(res.url) : null;
+    if (finalUrl && finalUrl.pathname !== path) return { notFound: true };
+    // Past the last page Wellfound serves page 1 again
+    if (page > 1 && finalUrl && finalUrl.searchParams.get("page") !== String(page)) {
+      return { end: true };
+    }
+    const connections = searchConnections(cache);
+    const connection =
+      connections.find((c) => (c.page ?? 1) === page) || (connections.length === 1 ? connections[0] : null);
+    if (connection && connection.page != null && connection.page !== page) return { end: true };
+    // A role page that says it is some other role
+    if (role && connection?.role != null && connection.role !== role) return { notFound: true };
+    return { jobs: pageJobs(cache, connection), connection };
   }
 
   function usRemote(job) {
-    if (job.remote === false) return false;
-    if (!job.remoteIn.length) return true;
-    return job.remoteIn.some((n) => US_REMOTE_RE.test(n));
+    return (
+      !job.remoteIn.length ||
+      job.remoteIn.some((n) => US_PLACE_RE.test(n) || US_STATE_CODE_RE.test(n))
+    );
+  }
+
+  function locationText(job) {
+    if (job.remoteIn.some((n) => /^united states$/i.test(n))) return "Remote (United States)";
+    if (job.remoteIn.length) {
+      const shown = job.remoteIn.slice(0, 3).join(", ");
+      return `Remote (${shown}${job.remoteIn.length > 3 ? ", …" : ""})`;
+    }
+    return job.locations.length ? `Remote · ${job.locations.slice(0, 3).join(", ")}` : "Remote";
   }
 
   function toRow(job) {
-    const yearsText = globalThis.jbRequiredYearsFromText(job.description);
-    const years = job.yearsMin != null ? job.yearsMin : yearsText;
+    const fromText = globalThis.jbRequiredYearsFromText(job.description);
+    const years =
+      job.yearsMin == null ? fromText : fromText == null ? job.yearsMin : Math.max(job.yearsMin, fromText);
     return {
       title: job.title,
       company: job.company,
-      location: job.remoteIn.length
-        ? `Remote (${job.remoteIn.join(", ")})`
-        : job.locations.length
-          ? `Remote · ${job.locations.join(", ")}`
-          : "Remote",
+      location: locationText(job),
       site: "wellfound",
       listing_type: job.jobType,
-      date_posted: Number.isNaN(job.postedMs)
-        ? ""
-        : new Date(job.postedMs).toISOString().slice(0, 10),
+      date_posted: Number.isNaN(job.postedMs) ? "" : new Date(job.postedMs).toISOString().slice(0, 10),
       is_remote: "Yes",
       easy_apply: "",
       job_url: job.url,
@@ -292,98 +411,94 @@
       pauseMs = 600,
     } = args || {};
 
-    if (typeof document !== "undefined") {
-      const head = `<title>${document.title}</title>${
-        document.documentElement?.innerHTML?.slice(0, 20000) || ""
-      }`;
-      if (isChallenge(head)) return { error: BLOCKED_MSG };
-    }
-
     const titleQ = String(title).trim();
     const cutoff = hoursOld > 0 ? Date.now() - hoursOld * 3600 * 1000 : 0;
+    const stats = {
+      pages: 0,
+      notRemote: 0,
+      notUs: 0,
+      geoUnspecified: 0,
+      tooOld: 0,
+      undated: 0,
+      title: 0,
+      filters: 0,
+    };
+    const jobs = [];
+    const finish = (extra) => ({
+      jobs,
+      rawCount: seen.size,
+      role: source.role,
+      ...stats,
+      dropped: {
+        notRemote: stats.notRemote,
+        notUs: stats.notUs,
+        tooOld: stats.tooOld,
+        title: stats.title,
+        filters: stats.filters,
+      },
+      ...extra,
+    });
+    const seen = new Set();
 
     // Role page when the title names a Wellfound role; otherwise every remote job
     let source = { path: "/remote", role: "" };
     let first = null;
     for (const role of titleQ ? await roleCandidates(titleQ) : []) {
-      const page = await listingPage(`/role/r/${role}`, 1);
-      if (page.blocked) return { error: BLOCKED_MSG, jobs: [], rawCount: 0 };
-      // An unknown role can be served as some other search
-      const servedRole = page.meta ? page.meta.args.role : role;
-      if (page.jobs?.length && servedRole === role) {
-        source = { path: `/role/r/${role}`, role };
+      const path = `/role/r/${role}`;
+      const page = await listingPage(path, 1, role);
+      if (page.blocked) return finish({ error: BLOCKED_MSG });
+      if (page.jobs?.length) {
+        source = { path, role };
         first = page;
         break;
       }
     }
 
-    const jobs = [];
-    const seen = new Set();
-    const dropped = { notUs: 0, tooOld: 0, title: 0, filters: 0 };
-    let scanned = 0;
-    let pages = 0;
-    let pageCount = null;
-    let hitPageLimit = false;
-    // Pages in a row with nothing inside the Posted window
-    let stalePages = 0;
-    let stoppedOld = false;
+    let stopReason = "";
     for (let n = 1; jobs.length < resultsWanted; n++) {
       if (n > maxPages) {
-        hitPageLimit = true;
+        stopReason = "page limit";
         break;
       }
-      const page = n === 1 && first ? first : await listingPage(source.path, n);
-      if (page.blocked) {
-        return { error: BLOCKED_MSG, jobs, rawCount: scanned, pages, role: source.role };
-      }
-      if (page.end) break;
-      if (!page.jobs) {
-        if (n > 1) break;
-        return {
-          error: page.noData ? FORMAT_MSG : `Wellfound HTTP ${page.status}`,
-          jobs,
-          rawCount: scanned,
-          pages,
-          role: source.role,
-        };
-      }
-      if (n === 1 && !page.jobs.length) {
-        return { error: FORMAT_MSG, jobs, rawCount: scanned, pages, role: source.role };
-      }
-      pages = n;
-      if (page.meta?.pageCount) pageCount = page.meta.pageCount;
+      const page = n === 1 && first ? first : await listingPage(source.path, n, source.role);
+      const failure = page.blocked
+        ? BLOCKED_MSG
+        : page.netError || page.formatError || (page.status ? `Wellfound HTTP ${page.status}` : "");
+      if (failure) return finish({ error: failure, stopReason: "error" });
+      if (page.end || page.notFound) break;
+      if (n === 1 && !page.jobs.length) return finish({ error: FORMAT_MSG });
 
       let fresh = 0;
-      let dated = 0;
-      let inWindow = 0;
       for (const job of page.jobs) {
         if (seen.has(job.id)) continue;
         seen.add(job.id);
         fresh += 1;
-        scanned += 1;
-        if (!Number.isNaN(job.postedMs)) {
-          dated += 1;
-          if (!cutoff || job.postedMs >= cutoff) inWindow += 1;
-        }
-        if (!usRemote(job)) {
-          dropped.notUs += 1;
+        if (job.remote === false) {
+          stats.notRemote += 1;
           continue;
         }
-        if (cutoff && !Number.isNaN(job.postedMs) && job.postedMs < cutoff) {
-          dropped.tooOld += 1;
+        if (!usRemote(job)) {
+          stats.notUs += 1;
+          continue;
+        }
+        if (!job.remoteIn.length) stats.geoUnspecified += 1;
+        if (Number.isNaN(job.postedMs)) stats.undated += 1;
+        else if (cutoff && job.postedMs < cutoff) {
+          stats.tooOld += 1;
           continue;
         }
         if (titleQ && !globalThis.jbTitleMatches(job.title, titleQ)) {
-          dropped.title += 1;
+          stats.title += 1;
           continue;
         }
         const row = toRow(job);
         if (
+          /co-?founder/.test(job.jobType) ||
           !globalThis.jbStackMatches(row, stack) ||
           !globalThis.jbWithinExperience(row, years) ||
           !globalThis.jbMatchesEmployment(row, jobType)
         ) {
-          dropped.filters += 1;
+          stats.filters += 1;
           continue;
         }
         jobs.push(row);
@@ -391,26 +506,12 @@
       }
       // A page of only repeats means Wellfound looped back to page 1
       if (!fresh) break;
+      stats.pages = n;
+      const pageCount = Number(page.connection?.result?.pageCount);
       if (pageCount && n >= pageCount) break;
-      // Listings run roughly newest first; three stale pages in a row ends it
-      stalePages = cutoff && dated && !inWindow ? stalePages + 1 : 0;
-      if (stalePages >= 3) {
-        stoppedOld = true;
-        break;
-      }
       if (pauseMs) await sleep(pauseMs);
     }
-
-    return {
-      jobs,
-      rawCount: scanned,
-      pages,
-      pageCount,
-      hitPageLimit,
-      stoppedOld,
-      dropped,
-      role: source.role,
-    };
+    return finish({ stopReason, hitPageLimit: stopReason === "page limit" });
   }
 
   globalThis.jbWellfoundScrape = jbWellfoundScrape;

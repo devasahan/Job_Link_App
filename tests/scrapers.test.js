@@ -6,10 +6,11 @@ import { scrapeJobs } from "../extension/scrapers/index.js";
 const today = new Date().toISOString().slice(0, 10);
 const DAY = 86400000;
 
-// Just enough DOMParser for stripHtml()
+// Just enough DOMParser for stripHtml(): like a browser, textContent joins
+// text nodes with nothing in between
 globalThis.DOMParser = class {
   parseFromString(html) {
-    return { body: { textContent: String(html).replace(/<[^>]*>/g, " ") } };
+    return { body: { textContent: String(html).replace(/<[^>]*>/g, "") } };
   }
 };
 
@@ -150,4 +151,24 @@ test("Indeed keeps paging until Count stack matches are found", async () => {
   });
   assert.equal(jobs.length, 1);
   assert.equal(calls.length, 2, "stops as soon as Count is reached");
+});
+
+test("Indeed list items don't run together, so stack words in them match", async () => {
+  fakeIndeed([
+    [{ title: "Software Engineer", ms: Date.now(), desc: "</p><ul><li>Experience with React</li><li>AWS</li></ul><p>" }],
+  ]);
+  const { jobs } = await scrapeJobs({
+    sites: ["indeed"],
+    title: "Software Engineer",
+    stack: "React AWS",
+    count: 5,
+    datePreset: "today",
+  });
+  assert.equal(jobs.length, 1);
+});
+
+test("Indeed: quotes and backslashes in the search can't break the query", async () => {
+  const calls = fakeIndeed([[{ title: "Software Engineer", ms: Date.now(), desc: "React" }]]);
+  await scrapeJobs({ sites: ["indeed"], title: 'Software "Engineer"', stack: "React\\Redux", count: 1 });
+  assert.match(calls[0], /what: "Software \\"Engineer\\" React\\\\Redux"/);
 });

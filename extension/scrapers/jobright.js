@@ -9,6 +9,7 @@ import {
   resolveDatePreset,
   filterByRequest,
   normalizeJob,
+  reportStoppedEarly,
   sleep,
 } from "./util.js";
 
@@ -212,6 +213,7 @@ async function scrapeViaTab({
   onProgress?.(
     `Jobright (tab): ${response.rawCount ?? jobs.length} raw → ${jobs.length} matching title`
   );
+  reportStoppedEarly(onProgress, "Jobright", response);
   return jobs.slice(0, resultsWanted);
 }
 
