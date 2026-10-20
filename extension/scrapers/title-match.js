@@ -15,6 +15,8 @@
     // Next/Nest/Express are everyday words: keep the .js form distinct
     [/\b(next|nest|express)(?: ?js)\b/g, "$1js"],
     [/\bobjective c\b/g, "objectivec"],
+    // ".NET" and "dotnet" become "dotnet" in normalize(); staffing ads say "Dot Net"
+    [/\bdot net\b/g, "dotnet"],
     [/\bgolang\b/g, "go"],
   ];
 
@@ -85,7 +87,10 @@
     // "Python3", "C++17": the word plus a version number
     const versioned = (t) =>
       [...words].some((w) => w.startsWith(t) && /^\d+$/.test(w.slice(t.length)));
-    return tokens.every((t) => words.has(t) || versioned(t));
+    // A bare "Express" asks for the framework too ("Express.js" → expressjs);
+    // a "Next.js" query still needs the .js form
+    const jsForm = (t) => /^(?:next|nest|express)$/.test(t) && words.has(`${t}js`);
+    return tokens.every((t) => words.has(t) || versioned(t) || jsForm(t));
   }
 
   globalThis.jbTitleMatches = jbTitleMatches;

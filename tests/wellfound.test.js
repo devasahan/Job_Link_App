@@ -237,6 +237,28 @@ test("a security check is reported, not swallowed", async () => {
   });
   const r = await run({ title: "Software Engineer" });
   assert.match(r.error, /security check/);
+  assert.equal(r.blocked, true, "a new tab can show the check");
+});
+
+test("a rate limit is reported as one, not as a security check, and stops the search", async () => {
+  const calls = fakeSite({ ...ROLE_SITE, "/role/r/software-engineer": { status: 429, html: "Too Many Requests" } });
+  const r = await run({ title: "Software Engineer" });
+  assert.match(r.error, /limiting requests \(HTTP 429\)/);
+  assert.ok(!r.blocked, "blocked would open a new tab");
+  assert.equal(calls.at(-1), "/role/r/software-engineer", "no more pages while rate-limited");
+  fakeSite({ "/remote": { status: 429, html: "Too Many Requests" } });
+  const all = await run({ title: "" });
+  assert.match(all.error, /limiting requests/);
+  assert.ok(!all.blocked);
+});
+
+test("a security check on the all-remote listing is flagged for a new tab", async () => {
+  fakeSite({
+    "/remote": { status: 403, html: '<html><iframe src="https://geo.captcha-delivery.com/captcha/"></iframe></html>' },
+  });
+  const r = await run({ title: "" });
+  assert.match(r.error, /security check/);
+  assert.equal(r.blocked, true);
 });
 
 test("a page without __NEXT_DATA__ fails loudly", async () => {

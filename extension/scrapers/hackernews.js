@@ -29,17 +29,52 @@ const REMOTE_RE = /\bremote\b/i;
 const NOT_REMOTE_RE = /\b(?:no|not|isn'?t)\s+remote\b|\bremote\s*:?\s*no\b/i;
 const US_STATE_CODES =
   "AL|AK|AZ|AR|CA|CO|CT|DE|FL|GA|HI|ID|IL|IN|IA|KS|KY|LA|ME|MD|MA|MI|MN|MS|MO|MT|NE|NV|NH|NJ|NM|NY|NC|ND|OH|OK|OR|PA|RI|SC|SD|TN|TX|UT|VT|VA|WA|WV|WI|WY|DC";
-// Case-sensitive: "US", "ET"/"PT" time zones, ", CA" state codes
-const US_TOKEN_RE = new RegExp(
-  `\\b(?:US|USA|U\\.S\\.A?\\.?|[ECMP][SD]?T)\\b|,\\s*(?:${US_STATE_CODES})\\b`
-);
-const US_WORD_RE =
-  /\b(?:united states|us[- ](?:only|based)|us time ?zones?|north america|americas|worldwide|anywhere|global(?:ly)?)\b/i;
+// The US itself: case-sensitive "US", "U.S." (also before a space), "PST"
+const US_NAMED_RE = /\b(?:USA?|[ECMP][SD]T)\b|\bU\.S\.(?:A\.?)?(?!\w)/;
+const US_NAMED_WORD_RE = /\b(?:united states|us[- ](?:only|based)|us time ?zones?)\b/i;
+// ", TX" after a city ("Austin, TX/Remote" too); "AR/VR" isn't Arkansas
+const US_STATE_RE = new RegExp(`,\\s*(${US_STATE_CODES})\\b(?!/(?:VR|XR|MR)\\b)`, "g");
+// Bare "ET", "PT", "CT", "MT"
+const US_ZONE_RE = /\b([ECMP]T)\b/g;
+// "PT/FT", "PT, 20 hours/week": part-time, not Pacific Time ("PT, 4h overlap" is)
+const PART_TIME_RE =
+  /^PT(?:\s*\/\s*FT\b|\s*[,–-]?\s*\d+\s*(?:hours|hrs|h)\s*(?:\/|per|a)\s*(?:week|wk)\b)|FT\s*\/\s*$/;
+// Cities whose country code is also a US state or zone: "Berlin, DE", "Lisbon, PT"
+const CITY_COUNTRY = {
+  DE: /\b(?:berlin|munich|münchen|hamburg|frankfurt|cologne|köln|stuttgart|düsseldorf|dusseldorf|leipzig|dresden)\b/i,
+  IN: /\b(?:bangalore|bengaluru|hyderabad|pune|mumbai|delhi|chennai|gurgaon|gurugram|noida|kolkata|ahmedabad)\b/i,
+  IL: /\b(?:tel aviv|jerusalem|haifa|herzliya)\b/i,
+  CA: /\b(?:toronto|vancouver|montr[eé]al|ottawa|calgary|edmonton|winnipeg|qu[eé]bec)\b/i,
+  CO: /\b(?:bogot[aá]|medell[ií]n)\b/i,
+  AR: /\b(?:buenos aires|c[oó]rdoba)\b/i,
+  PT: /\b(?:lisbon|lisboa|porto|braga|coimbra)\b/i,
+  MT: /\b(?:valletta|sliema)\b/i,
+  MA: /\b(?:casablanca|rabat)\b/i,
+  ID: /\b(?:jakarta|bandung)\b/i,
+  AL: /\btirana\b/i,
+  AZ: /\bbaku\b/i,
+  TN: /\btunis\b/i,
+  ET: /\baddis ababa\b/i,
+};
+// Regions that include the US; "anywhere in Europe" doesn't
+const US_REGION_RE =
+  /\b(?:north america|americas|worldwide|global(?:ly)?)\b|\banywhere\b(?!\s+(?:in|within)\b(?!\s+the\s+(?:world|globe)\b))/i;
 const NON_US_TOKEN_RE = /\b(?:EU|EMEA|CET|UK|LATAM|APAC)\b/;
 const NON_US_WORD_RE =
   /\b(?:europe|european|united kingdom|canada|india|latin america|asia|australia|germany|france|spain|netherlands|poland|israel|brazil|mexico|switzerland|sweden|norway|denmark|finland|ireland|portugal|italy|austria|belgium|singapore|japan|london|berlin|zurich|toronto|vancouver|montreal|paris|amsterdam|dublin|bangalore|bengaluru|tel aviv|madrid|barcelona|lisbon|munich|stockholm|copenhagen|warsaw|sydney|melbourne)\b/i;
+// "excluding US", "non-US", "outside the US" (not "US-sanctioned countries")
+const US_EXCLUSION_RE =
+  /\b(?:(excluding|except)(?:\s+(?:for\s+)?the)?[\s-]+|non[- ]|outside\s+(?:of\s+)?(?:the\s+)?)(?:US|USA|U\.S\.(?:A\.?)?)(?!\w|\.\w|[\s-]*(?:sanction|embargo|ofac|west|east|pacific|mountain|central|eastern|western|time|hours|coast))/gi;
+const NEGATED_BEFORE_RE =
+  /\b(?:no|not|never|can'?t|cannot|unable|won'?t|including|incl|also|plus|even)\b[^|()]{0,25}$/i;
+const WELCOME_AFTER_RE = /^[^|()]{0,20}\b(?:ok|okay|welcome|fine|considered|possible|too|also|as well)\b/i;
+// "non-US" standing as the region: "(non-US)", ", outside US.", "only hire outside the US"
+const REGION_BEFORE_RE =
+  /(?:^|[(,/;:|]|\bremote|\s[-–—]|\bonly\b(?:\s+\w+){0,2}|\b(?:anywhere|worldwide|global|americas?|latam|europe|emea|apac))\s*$/i;
+const REGION_AFTER_RE = /^\s*(?:$|[),/;|.])/;
 const US_IN_BODY_RE =
   /\bauthori[sz]ed to work in the (?:us|u\.s\.|united states)\b|\bus citizens?(?:hip)?\b|\bus persons?\b/i;
+const KIND_LABELS = { fulltime: "Full-time", contract: "Contract", other: "Part-time / intern / temp" };
 const ATS_RE =
   /greenhouse\.io|lever\.co|ashbyhq\.com|workable\.com|smartrecruiters|recruitee|bamboohr|rippling|workday|jobs\.|\/jobs|\/careers/i;
 
@@ -74,24 +109,143 @@ function segmentsOf(header) {
   return [header];
 }
 
+// "acme.com", "jobs.lever.co/acme"; not "ASP.NET" or "Socket.io)"
+const URL_RE = /https?:|www\.|\b[\w-]+\.(?:com|io|ai|co|org|net|dev|app|jobs|so|xyz|tech)(?:\/|$)/i;
+// Pay amounts: "$150k", "USD 150k-190k", "$90-120/hr"
+const PAY_AMOUNT_RE = /(?:[$€£]|\b(?:USD|EUR|GBP)\s?)\s?\d[\d,.]*\s*k?|\b\d+(?:\.\d+)?\s*k\b|\/\s*(?:hr|hour|yr|year)\b/gi;
+// Words that only say where, how, how long or for how much
+const META_WORD_RE = new RegExp(
+  String.raw`\b(?:remote|onsite|on-site|hybrid|in-office|office|visa(?:\s+sponsorship)?|equity|base|ote|full[- ]?time|part[- ]?time|contract(?:or)?|contract[- ]to[- ]hire|freelance|intern(?:ship)?|temporary|w2|1099|c2c|months?|weeks?|worldwide|global(?:ly)?|anywhere|north america|americas|united states|usa?|eu|uk|emea|cet|latam|apac|only|based|preferred|ok|okay|friendly|first|or|and|in|from|within|the|time ?zones?|timezones?|hours?|overlap)\b|${NON_US_WORD_RE.source}`,
+  "gi"
+);
+const WORK_MODE_RE = /\b(?:remote|onsite|on-site|hybrid|in-office)\b/i;
+
 const isPlaceOrMeta = (seg) =>
   REMOTE_RE.test(seg) ||
   /\b(?:onsite|on-site|hybrid|in-office|visa)\b/i.test(seg) ||
   /[$€£]|\b\d+k\b|\busd\b|\bequity\b/i.test(seg) ||
-  /https?:|www\.|\.[a-z]{2,}\//i.test(seg) ||
+  URL_RE.test(seg) ||
   globalThis.jbEmploymentKinds(seg).length > 0;
+
+/** The city just before ", XX": "Remote or Berlin, DE" → "Berlin". */
+const cityBefore = (text, index) =>
+  text.slice(0, index).split(/[|;()/,]|\s+(?:or|and|&)\s+/).pop().trim();
+
+/**
+ * Names the US: "US", "U.S.", "United States", "PST", a state after a city
+ * ("Austin, TX") or a US time zone ("PT/ET hours"). Not "Berlin, DE",
+ * "Bangalore, IN", "Lisbon, PT" or "PT/FT".
+ */
+function namesUs(text, { codes = true } = {}) {
+  if (US_NAMED_RE.test(text) || US_NAMED_WORD_RE.test(text)) return true;
+  if (!codes) return false;
+  for (const m of text.matchAll(US_STATE_RE)) {
+    if (!CITY_COUNTRY[m[1]]?.test(cityBefore(text, m.index))) return true;
+  }
+  for (const m of text.matchAll(US_ZONE_RE)) {
+    if (PART_TIME_RE.test(text.slice(m.index)) || PART_TIME_RE.test(text.slice(0, m.index))) continue;
+    const comma = text.slice(0, m.index).match(/,\s*$/);
+    if (comma && CITY_COUNTRY[m[1]]?.test(cityBefore(text, comma.index))) continue;
+    return true;
+  }
+  return false;
+}
+
+/**
+ * Phrases that rule the US out: "excluding US", and "non-US" / "outside the
+ * US" when they are the region itself ("Remote (non-US)", "outside US only",
+ * "We only hire outside the US."), not a side note ("no visa for non-US
+ * citizens", "can't hire outside the US", "outside the US OK", "US and non-US").
+ */
+function usExclusions(text) {
+  const found = [];
+  for (const m of text.matchAll(US_EXCLUSION_RE)) {
+    const before = text.slice(0, m.index);
+    const after = text.slice(m.index + m[0].length);
+    if (NEGATED_BEFORE_RE.test(before) || WELCOME_AFTER_RE.test(after)) continue;
+    if (
+      m[1] ||
+      /^\s*(?:[\w-]+\s+){0,2}only\b/i.test(after) ||
+      (REGION_BEFORE_RE.test(before) && REGION_AFTER_RE.test(after))
+    ) {
+      found.push(m[0]);
+    }
+  }
+  return found;
+}
+
+const namesPlace = (text) =>
+  namesUs(text) ||
+  US_REGION_RE.test(text) ||
+  usExclusions(text).length > 0 ||
+  NON_US_TOKEN_RE.test(text) ||
+  NON_US_WORD_RE.test(text);
 
 /** Remote and open to the US? "yes" / "no" / "unknown" — from the header. */
 function usRemote(header, body) {
   if (!REMOTE_RE.test(header) || NOT_REMOTE_RE.test(header)) return "no";
-  if (US_TOKEN_RE.test(header) || US_WORD_RE.test(header)) return "yes";
+  // "Remote (Americas, excluding US)": only the US named elsewhere keeps it
+  const excluded = usExclusions(header);
+  if (excluded.length) {
+    return namesUs(excluded.reduce((t, x) => t.replace(x, " "), header)) ? "yes" : "no";
+  }
+  // "Remote (US/Canada)": the US named, so a second region doesn't matter
+  if (namesUs(header) || US_REGION_RE.test(header)) return "yes";
+  // "Remote (anywhere in Europe)", "Remote or Berlin, DE"
   if (NON_US_TOKEN_RE.test(header) || NON_US_WORD_RE.test(header)) return "no";
   return US_IN_BODY_RE.test(body) ? "yes" : "unknown";
 }
 
+/**
+ * Only place, pay or employment type: "Remote, US only", "$150k",
+ * "Full-time", "Hybrid (NYC) or Remote". Not "US Payments" or "Smart
+ * Contract Security", where a specialty is left over.
+ */
+function isMetaText(text) {
+  const rest = text
+    .replace(PAY_AMOUNT_RE, " ")
+    .replace(META_WORD_RE, " ")
+    .replace(/[^\p{L}\s]/gu, " ")
+    .trim();
+  if (!rest) return true;
+  // A work mode plus a short place: "Remote/SF", "Hybrid (NYC) or Remote"
+  return WORK_MODE_RE.test(text) && /^(?:[A-Z][\p{L}.'-]*\s*){1,2}$/u.test(rest);
+}
+
+// The last part after " - ", "—", ",", ":" or "/"
+const TAIL_RE = /(?:\s+-\s+|\s*[–—,:/]\s*)((?:(?!\s+-\s+|[–—,:/]).)+)$/;
+
+/**
+ * The role words of a header part: "Senior Engineer (Remote, US)",
+ * "Engineer, Full-time", "Engineer — $180k + equity" and "Engineer – US only"
+ * → "… Engineer". "Software Engineer (Backend)" keeps its specialty.
+ */
+function cleanRole(seg) {
+  let s = seg
+    .replace(/\(([^)]*)\)/g, (m, inner) => (isMetaText(inner) ? " " : m))
+    // Pay runs to the end: "— $180k + equity", ", 150k-200k", "up to $200k"
+    .replace(/\s*(?:[-–—,:~@]\s*|\bup\s+to\s+)*(?:(?:[$€£]|\b(?:USD|EUR|GBP)\s?)\s?\d|\b\d+(?:\.\d+)?\s*k\b).*$/i, "")
+    .replace(/\s+/g, " ")
+    .trim();
+  for (let m = s.match(TAIL_RE); m && isMetaText(m[1]); m = s.match(TAIL_RE)) {
+    s = s.slice(0, m.index).trim();
+  }
+  return s;
+}
+
 /** The role this post offers: a header part, else a short role line in the body. */
 function titleOf(segments, bodyLines, titleQuery) {
-  const roles = segments.slice(1).filter((s) => !isPlaceOrMeta(s));
+  const roles = segments
+    .slice(1)
+    .map(cleanRole)
+    // A part that names a role but is also pay, type or place stays; a link doesn't
+    .filter(
+      (s) =>
+        s &&
+        !URL_RE.test(s) &&
+        // "Full-time roles", "Visa sponsorship for engineers" are not roles
+        (ROLE_RE.test(s.replace(/\b(?:roles|positions)\b|\bfor\s+\w+\s*$/gi, "")) || !isPlaceOrMeta(s))
+    );
   if (titleQuery) {
     const hit = roles.find((s) => globalThis.jbTitleMatches(s, titleQuery));
     if (hit) return hit;
@@ -123,9 +277,8 @@ function toJob(hit, titleQuery) {
   const body = lines.join("\n");
   const bodyLines = lines.slice(1).map((l) => l.replace(/^[*•·-]+\s*/, "").trim());
   // "Company | Full time | url": where the work happens is on the next lines
-  const placeless = !/\b(?:remote|onsite|on-site|hybrid|in[- ]office|office)\b/i.test(header) &&
-    !US_TOKEN_RE.test(header) && !US_WORD_RE.test(header) &&
-    !NON_US_TOKEN_RE.test(header) && !NON_US_WORD_RE.test(header);
+  const placeless =
+    !/\b(?:remote|onsite|on-site|hybrid|in[- ]office|office)\b/i.test(header) && !namesPlace(header);
   const where = usRemote(placeless ? `${header} | ${bodyLines.slice(0, 2).join(" | ")}` : header, body);
   if (where === "no") return { skip: "not US-remote" };
   const company = segments[0]
@@ -139,7 +292,10 @@ function toJob(hit, titleQuery) {
       company,
       location: where === "unknown" ? "Remote (region unspecified)" : place || "Remote",
       site: "hackernews",
-      listing_type: segments.filter((s) => globalThis.jbEmploymentKinds(s).length).join(", "),
+      // "Contract Software Engineer" → "Contract", not the whole part
+      listing_type: [...new Set(segments.flatMap((s) => globalThis.jbEmploymentKinds(s)))]
+        .map((k) => KIND_LABELS[k])
+        .join(", "),
       // Full timestamp while filtering; trimmed to the day for the sheet
       date_posted: new Date(Number(hit.created_at_i) * 1000).toISOString(),
       is_remote: true,

@@ -14,17 +14,27 @@
   const YEARS_RE =
     /(?:\b(?:at least|minimum(?: of)?|min\.?)\s+)?(\d+(?:\.\d+)?)(?:\s*(?:-|–|—|to)\s*(\d+(?:\.\d+)?))?(?:\s*\+|\s+or\s+more|\s+plus)?\s*(?:years?|yrs?)['’]?(?:\s+of)?((?:\s+\.?[a-z][a-z0-9+#./-]*[a-z0-9+#]){0,6}?)\s+experience\b/gi;
   const EXPERIENCE_FIRST_RE =
-    /\bexperience\s*(?::|-|–|—|\bof\b)\s*(?:(?:at least|minimum(?: of)?|min\.?)\s+)?(\d+(?:\.\d+)?)(?:\s*(?:-|–|—|to)\s*\d+(?:\.\d+)?)?(?:\s*\+|\s+or\s+more|\s+plus)?\s*(?:years?|yrs?)\b/gi;
+    /\bexperience(?:\s+(?:required|needed))?\s*(?::|-|–|—|\bof\b)\s*(?:(?:at least|minimum(?: of)?|min\.?)\s+)?(\d+(?:\.\d+)?)(?:\s*(?:-|–|—|to)\s*\d+(?:\.\d+)?)?(?:\s*\+|\s+or\s+more|\s+plus)?\s*(?:years?|yrs?)\b/gi;
   // "We have …", "Our company has over …" right before the number
   const COMPANY_BEFORE_RE =
-    /\b(?:we|our\s+[a-z]+|the\s+company|company|firm|agency|founders?)\s+(?:has|have|had|brings?|boasts?)\s+(?:(?:over|more\s+than|nearly|almost|about|around)\s+)?$/i;
+    /\b(?:we|our\s+[a-z]+(?:\s+(?:team|group|staff|founders?|company|firm))?|the\s+company|company|firm|agency|founders?)\s+(?:has|have|had|brings?|boasts?)\s+(?:(?:over|more\s+than|nearly|almost|about|around)\s+)?$/i;
   // "12 years of combined experience across our leadership" is a blurb;
   // "5+ years of combined experience in backend" is a requirement
   const COMBINED_RE = /\b(?:combined|collective|cumulative)\b/i;
   const COMPANY_WORD_RE = /\b(?:we|our|us|team|founders?|leadership)\b/i;
-  // Same sentence, before "experience of N years"
+  // Same sentence, before "experience of N years": the company's history
+  // ("Our company, with an experience of 12 years, …")…
   const COMPANY_SENTENCE_RE =
     /\b(?:we|our|company|firm|agency|consultancy|founders?)\b[^.!?\n]*$/i;
+  // …always when the company itself takes it ("a staffing firm having experience of 12 years")…
+  const COMPANY_TAKES_RE =
+    /\b(?:company|firm|agency|consultancy|organi[sz]ation)\s+(?:(?:that|which)\s+)?(?:with|having|has|brings?|bringing)\s+(?:an?\s+)?$/i;
+  // …but not when the sentence asks for a person ("We are looking for someone with experience of 5 years")
+  const HIRING_RE =
+    /\b(?:(?:looking|searching)\s+for|seeking|hiring(?:\s+for)?|needs?|wants?|requires?)\s+(?:an?\s|someone|somebody|candidates?|engineers?|developers?|professionals?)|\bideal\s+candidate\b|\b(?:must|should)\s+have\b/i;
+  // "Startup or agency experience of 3+ years" describes the experience
+  const MODIFIER_RE =
+    /(?:^|[\n:•*-]|\bor|\band|\bhave|\bhas|\bstrong|\bprior)\s*(?:[a-z-]+\s+)?(?:company|firm|agency|consultancy)\s*$/i;
   // Bigger numbers are company history ("25 years of industry experience")
   const MAX_REQUIRED_YEARS = 15;
 
@@ -57,7 +67,15 @@
     }
     for (const match of s.matchAll(EXPERIENCE_FIRST_RE)) {
       const before = s.slice(Math.max(0, match.index - 80), match.index);
-      if (COMPANY_SENTENCE_RE.test(before)) continue;
+      // "Experience: 5+ years" is a label, never a blurb ("Our Experience: 12 years" is)
+      const label =
+        /^experience(?:\s+(?:required|needed))?\s*(?::|-|–|—)/i.test(match[0]) && !/\bour\s*$/i.test(before);
+      const blurb =
+        COMPANY_TAKES_RE.test(before) ||
+        (COMPANY_SENTENCE_RE.test(before) &&
+          !HIRING_RE.test(before.split(/[.!?\n]/).pop()) &&
+          !MODIFIER_RE.test(before));
+      if (!label && blurb) continue;
       consider(match[1]);
     }
     return max;

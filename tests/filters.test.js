@@ -1,5 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 
 import {
   filterByRequest,
@@ -175,4 +176,56 @@ test("years: 'combined experience' is a blurb only when the sentence is about th
     3
   );
   assert.equal(requiredYearsFromText("5+ years of combined experience in backend and DevOps."), 5);
+});
+
+test("years: 'experience of N years' needs a company owner right before it to be a blurb", () => {
+  assert.equal(requiredYearsFromText("We are looking for a Senior Go engineer with experience of 5+ years building APIs."), 5);
+  assert.equal(requiredYearsFromText("Our client needs a Java developer Experience: 8+ years"), 8);
+  assert.equal(requiredYearsFromText("Join our team and bring experience - 4 years in React"), 4);
+  assert.equal(requiredYearsFromText("What we're looking for Experience: 6+ years in Go"), 6);
+  assert.equal(requiredYearsFromText("Our company has experience of 12 years in fintech."), null);
+});
+
+test("stack and title: Dot Net is .NET", () => {
+  assert.ok(titleMatches("Sr. Dot Net Developer", ".NET Developer"));
+  assert.ok(titleMatches(".NET Developer", "Dot Net Developer"));
+  assert.ok(keeps(job({ description: "Dot Net Developer with C#" }), { stack: ".NET" }));
+  assert.ok(!keeps(job({ description: "net-new revenue" }), { stack: ".NET" }));
+});
+
+test("stack: bare Express / Next / Nest find the .js frameworks", () => {
+  const desc = (description) => job({ description });
+  assert.ok(keeps(desc("Node, Express.js, MongoDB"), { stack: "Node Express" }));
+  assert.ok(keeps(desc("NodeJS/ExpressJS APIs"), { stack: "Node Express" }));
+  assert.ok(keeps(desc("Next.js app router"), { stack: "Next" }));
+  assert.ok(keeps(desc("Built with NestJS"), { stack: "Nest" }));
+  assert.ok(!keeps(desc("We are building the next generation"), { stack: "Next.js" }));
+  assert.ok(!keeps(desc("Express your ideas"), { stack: "Express.js" }));
+});
+
+test("years: 'experience of N years' is a company blurb unless the sentence is hiring", () => {
+  for (const blurb of [
+    "ABC Technologies is an IT services firm having experience of 12 years in staffing. Java developer needed.",
+    "XYZ is a staffing company that has experience of 12 years.",
+    "Our company, with an experience of 12 years, is hiring juniors.",
+    "We are a team of engineers with experience of 10 years in fintech.",
+    "Acme is a consultancy with an experience of 12 years in IT services.",
+  ]) {
+    assert.equal(requiredYearsFromText(blurb), null, blurb);
+  }
+  assert.equal(requiredYearsFromText("We are looking for someone with experience of 5 years in React."), 5);
+  assert.equal(requiredYearsFromText("Our client needs a developer with experience of 6 years."), 6);
+  assert.equal(requiredYearsFromText("Our team needs an engineer with experience of 3-5 years."), 3);
+  assert.equal(requiredYearsFromText("The ideal candidate has experience of 4 years."), 4);
+});
+
+test("years: sentence fixtures", () => {
+  const lines = readFileSync(new URL("./fixtures/years.txt", import.meta.url), "utf8")
+    .split("\n")
+    .filter((l) => l.trim() && !l.startsWith("#"));
+  for (const line of lines) {
+    const [text, expected] = line.split(/\s+=>\s+/);
+    const want = expected.trim() === "null" ? null : Number(expected);
+    assert.equal(requiredYearsFromText(text.replace(/\\n/g, "\n")), want, text);
+  }
 });

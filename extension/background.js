@@ -9,6 +9,9 @@ import { jobrightSearchUrl } from "./scrapers/jobright.js";
 
 const GD_URL = "https://www.glassdoor.com/Job/remote-jobs.htm";
 const WF_URL = "https://wellfound.com/remote";
+const ZR_ORIGIN_KEY = "zipRecruiterRegionalOrigin";
+// A regional site the manifest grants (not www.ziprecruiter.com itself)
+const ZR_REGIONAL_RE = /^https:\/\/(?:[a-z0-9-]+\.)?ziprecruiter\.(?:ie|co\.uk|ca)$/;
 
 function sleep(ms) {
   return new Promise((r) => setTimeout(r, ms));
@@ -74,45 +77,50 @@ async function openSiteTab(openUrl) {
 }
 
 /**
- * Open or reuse a site tab. An open tab on the site is used as it is: the
- * scrapers only fetch from its origin, so the user's page is never navigated
- * away. No focus is forced on existing tabs (that triggers "Tabs cannot be
- * edited right now" when the user is switching tabs).
+ * An open site tab to reuse, or null. It is used as it is: the scrapers only
+ * fetch from its origin, so the user's page is never navigated away. No
+ * focus is forced on existing tabs (that triggers "Tabs cannot be edited
+ * right now" when the user is switching tabs). Earlier patterns win.
  */
-async function ensureSiteTab(urlPatterns, openUrl) {
-  // Discarded or unloaded tabs can't run scripts
-  const existing = (await chrome.tabs.query({ url: urlPatterns, discarded: false })).filter(
-    (t) => t.status !== "unloaded"
-  );
-  const tab = existing.find((t) => t.status === "complete") || existing[0];
-  if (!tab) return openSiteTab(openUrl);
-  if (tab.status !== "complete") await waitTabComplete(tab.id, 15000);
-  return { tab: await chrome.tabs.get(tab.id), created: false };
+async function findSiteTab(urlPatterns) {
+  for (const url of urlPatterns) {
+    // Discarded or unloaded tabs can't run scripts
+    const tabs = (await chrome.tabs.query({ url, discarded: false }))
+      .filter((t) => t.status !== "unloaded")
+      // The tab used last is where the user passed any security check
+      .sort((a, b) => (b.lastAccessed || 0) - (a.lastAccessed || 0));
+    const tab = tabs.find((t) => t.status === "complete") || tabs[0];
+    if (!tab) continue;
+    if (tab.status !== "complete") await waitTabComplete(tab.id, 15000);
+    return chrome.tabs.get(tab.id);
+  }
+  return null;
 }
-
-const BLOCKED_RE = /security check|\(blocked\)|blocked session/i;
 
 /**
  * Run a page scrape in a site tab. When a reused tab can't run it (error page,
- * crashed, stuck loading) or the site blocks it (an expired bot-check cookie
- * makes fetches fail while the page still looks fine), retry once in a new
- * tab, where the site can show its check. The user's own tab is left alone.
+ * crashed, stuck loading) or the scrape reports `blocked` (an expired
+ * bot-check cookie makes fetches fail while the page still looks fine),
+ * retry once in a new tab, where the site can show its check. The user's own
+ * tab is left alone. Other errors (rate limits, HTTP 500) are returned as
+ * they are: a new tab wouldn't help. A new tab that fails isn't retried.
  */
 async function scrapeInSiteTab(urlPatterns, openUrl, run) {
-  let created = false;
-  let result;
+  let tab = null;
   try {
-    const site = await ensureSiteTab(urlPatterns, openUrl);
-    created = site.created;
-    result = await run(site.tab.id);
-  } catch (err) {
-    if (created) throw err;
-    result = { error: err?.message || String(err), tabFailed: true };
+    tab = await findSiteTab(urlPatterns);
+  } catch {
+    // Closed or stuck loading: use a new tab
   }
-  const failed =
-    result?.tabFailed ||
-    (result?.error && !result.jobs?.length && BLOCKED_RE.test(result.error));
-  if (!failed || created) return result;
+  if (tab) {
+    let result;
+    try {
+      result = await run(tab.id);
+    } catch (err) {
+      result = { error: err?.message || String(err), tabFailed: true };
+    }
+    if (!result?.tabFailed && !(result?.blocked && !result.jobs?.length)) return result;
+  }
   const fresh = await openSiteTab(openUrl);
   return run(fresh.tab.id);
 }
@@ -172,6 +180,7 @@ async function glassdoorPageScrape(args) {
     )
   ) {
     return {
+      blocked: true,
       error:
         "Glassdoor security check is open in a tab. Complete it, then press OK again.",
     };
@@ -197,6 +206,7 @@ async function glassdoorPageScrape(args) {
   const token = (await getToken()) || fallbackToken;
   if (!token) {
     return {
+      blocked: true,
       error:
         "Glassdoor blocked session. Open glassdoor.com, pass the security check, retry.",
     };
@@ -250,9 +260,20 @@ async function glassdoorPageScrape(args) {
     });
 
     const raw = await res.text();
-    if (!res.ok || /security\s*\|\s*glassdoor/i.test(raw.slice(0, 500))) {
+    if (res.status === 403 || /security\s*\|\s*glassdoor/i.test(raw.slice(0, 500))) {
       return {
-        error: `Glassdoor HTTP ${res.status} (blocked). Complete the security check in the Glassdoor tab, then retry.`,
+        blocked: true,
+        error: `Glassdoor HTTP ${res.status}: its security check blocked the search. Complete it in the Glassdoor tab, then retry.`,
+        rawCount: jobs.length,
+        jobs,
+      };
+    }
+    if (!res.ok) {
+      return {
+        error:
+          res.status === 429
+            ? "Glassdoor is limiting requests (HTTP 429). Wait a few minutes, then retry."
+            : `Glassdoor HTTP ${res.status}`,
         rawCount: jobs.length,
         jobs,
       };
@@ -405,8 +426,11 @@ async function ziprecruiterPageScrape(args) {
     )
   ) {
     return {
+      blocked: true,
       error:
         "ZipRecruiter security check is open in a tab. Complete it, then press OK again.",
+      // Remember a regional landing even when it shows the check first
+      origin: BASE,
     };
   }
 
@@ -454,12 +478,26 @@ async function ziprecruiterPageScrape(args) {
       if (res.ok) break;
       html = "";
     }
-    if (blocked) {
+    if (blocked || (!html && lastStatus === 403)) {
       return {
-        error: `ZipRecruiter HTTP ${lastStatus || 403} (blocked). Complete the security check in the ZipRecruiter tab, then retry.`,
+        blocked: true,
+        error: `ZipRecruiter HTTP ${lastStatus || 403}: its security check blocked the search. Complete it in the ZipRecruiter tab, then retry.`,
         jobs,
         rawCount: jobs.length,
+        origin: BASE,
       };
+    }
+    if (!html && lastStatus === 429) {
+      return {
+        error: "ZipRecruiter is limiting requests (HTTP 429). Wait a few minutes, then retry.",
+        jobs,
+        rawCount: jobs.length,
+        origin: BASE,
+      };
+    }
+    // A later page that isn't there is the end; a failing first page or server is an error
+    if (!html && lastStatus >= 400 && (page === 1 || lastStatus >= 500)) {
+      return { error: `ZipRecruiter HTTP ${lastStatus}`, jobs, rawCount: jobs.length, origin: BASE };
     }
     if (!html) break;
 
@@ -545,7 +583,7 @@ async function ziprecruiterPageScrape(args) {
     }
   }
 
-  return { jobs, rawCount: scanned };
+  return { jobs, rawCount: scanned, origin: BASE };
 }
 
 async function runGlassdoorScrape(payload) {
@@ -573,8 +611,14 @@ async function runZipRecruiterScrape(payload) {
     const search = encodeURIComponent(payload.searchTerm || "remote");
     const days = payload.days || 1;
     const openUrl = `https://www.ziprecruiter.com/jobs-search?search=${search}&location=United+States&remote=1&refine_by_location_type=only_remote&days=${days}`;
-    // Only reuse a US-site tab; a new tab follows any real geo-redirect
-    const result = await scrapeInSiteTab(["https://www.ziprecruiter.com/*"], openUrl, (tabId) =>
+    // Reuse a US-site tab. A geo-redirect sends new tabs to a regional site
+    // (.co.uk, .ie, .ca); once a scrape has landed there, reuse tabs on it
+    // too, or every run would open another one.
+    const patterns = ["https://www.ziprecruiter.com/*"];
+    const stored = await chrome.storage.session.get(ZR_ORIGIN_KEY).catch(() => ({}));
+    const regional = stored?.[ZR_ORIGIN_KEY];
+    if (ZR_REGIONAL_RE.test(regional || "")) patterns.push(`${regional}/*`);
+    const result = await scrapeInSiteTab(patterns, openUrl, (tabId) =>
       runPageScrape(tabId, ziprecruiterPageScrape, {
         searchTerm: payload.searchTerm || "",
         titleQuery: payload.title || "",
@@ -585,6 +629,9 @@ async function runZipRecruiterScrape(payload) {
         jobType: payload.jobType || "",
       })
     );
+    if (ZR_REGIONAL_RE.test(result?.origin || "")) {
+      await chrome.storage.session.set({ [ZR_ORIGIN_KEY]: result.origin }).catch(() => {});
+    }
     return siteReply("ZipRecruiter", result);
   } catch (err) {
     return { error: err?.message || String(err) };
@@ -603,6 +650,7 @@ async function jobrightPageScrape(args) {
 
   if (/security check/i.test(document.title)) {
     return {
+      blocked: true,
       error:
         "Jobright security check is open in a tab. Complete it, then press OK again.",
     };
@@ -721,6 +769,7 @@ async function jobrightPageScrape(args) {
     );
     if (blocked) {
       return {
+        blocked: true,
         error:
           "Jobright security check blocked search. Complete it in the Jobright tab, then retry.",
         jobs,
@@ -739,6 +788,7 @@ async function jobrightPageScrape(args) {
     const { blocked, html, status } = await fetchHtml("/remote-jobs");
     if (blocked && !jobs.length) {
       return {
+        blocked: true,
         error:
           "Jobright security check is open. Complete it in the Jobright tab, then retry.",
         jobs,
@@ -866,6 +916,7 @@ async function dicePageScrape(args) {
 
   if (/just a moment|attention required|security check/i.test(document.title)) {
     return {
+      blocked: true,
       error:
         "Dice security check is open in a tab. Complete it, then press OK again.",
     };
@@ -1014,8 +1065,9 @@ async function dicePageScrape(args) {
 
   while (jobs.length < resultsWanted && page <= pageCount && emptyStreak < 2) {
     const { blocked, html, status } = await fetchSearchPage(page);
-    if (blocked) {
+    if (blocked || status === 403) {
       return {
+        blocked: true,
         error:
           "Dice security check blocked search. Complete it in the Dice tab, then retry.",
         jobs,
@@ -1024,7 +1076,10 @@ async function dicePageScrape(args) {
     }
     if (status >= 400) {
       return {
-        error: `Dice HTTP ${status}`,
+        error:
+          status === 429
+            ? "Dice is limiting requests (HTTP 429). Wait a few minutes, then retry."
+            : `Dice HTTP ${status}`,
         jobs,
         rawCount: jobs.length,
       };
@@ -1173,18 +1228,24 @@ async function builtinPageScrape(args) {
     const end =
       /no job results/i.test(doc.querySelector("h1")?.textContent || "") ||
       (cards.length > 0 && !doc.querySelector('a[aria-label="Go to Next Page" i]'));
-    const challenge =
-      res.status === 403 || res.status === 429 || res.status === 503 || /^\s*just a moment/i.test(doc.title);
+    const challenge = res.status === 403 || /^\s*just a moment/i.test(doc.title);
     return { doc, cards, end, challenge, status: res.status };
   }
 
-  if (/^\s*just a moment/i.test(document.title)) return { error: BLOCKED };
+  if (/^\s*just a moment/i.test(document.title)) return { blocked: true, error: BLOCKED };
 
   const jobs = [];
   const seen = new Set();
   for (let page = 1; page <= maxPages && jobs.length < resultsWanted; page++) {
     const { doc, cards, end, challenge, status } = await getPage(page);
-    if (challenge) return { error: BLOCKED, jobs, rawCount: scanned };
+    if (challenge) return { blocked: true, error: BLOCKED, jobs, rawCount: scanned };
+    if (status === 429 || status === 503) {
+      return {
+        error: `Built In is limiting requests (HTTP ${status}). Wait a few minutes, then retry.`,
+        jobs,
+        rawCount: scanned,
+      };
+    }
     if (!cards.length) {
       if (end || page > 1) break;
       return {
@@ -1445,8 +1506,11 @@ async function turingPageScrape(args) {
     body: JSON.stringify(args.body),
   });
   const raw = await res.text();
-  if (res.status === 403 || res.status === 429 || res.status === 503 || /incapsula/i.test(raw.slice(0, 3000))) {
-    return { error: "Turing security check is open in a tab. Complete it, then press OK again." };
+  if (res.status === 403 || /incapsula/i.test(raw.slice(0, 3000))) {
+    return { blocked: true, error: "Turing security check is open in a tab. Complete it, then press OK again." };
+  }
+  if (res.status === 429 || res.status === 503) {
+    return { error: `Turing is limiting requests (HTTP ${res.status}). Wait a few minutes, then retry.` };
   }
   try {
     return { status: res.status, data: JSON.parse(raw) };

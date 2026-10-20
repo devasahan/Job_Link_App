@@ -1,0 +1,139 @@
+# Hacker News first lines (optionally <p>body): KEEP or SKIP as US-remote ;; expected title
+KEEP ;; Acme | Senior Software Engineer | Remote (US and non-US)
+KEEP ;; Acme | Senior Software Engineer | Remote (US preferred, non-US considered)
+KEEP ;; Acme | Senior Software Engineer | REMOTE (US or outside the US with 4h overlap)
+KEEP ;; Acme | Senior Software Engineer | Remote (anywhere except US-sanctioned countries)
+KEEP ;; Acme | Senior Software Engineer | Remote (US) | Visa sponsorship for non-US candidates
+KEEP ;; Acme | Senior Software Engineer | Full-time | https://acme.com<p>We're fully remote across the US, and we also hire outside the US as contractors.
+KEEP ;; Acme | Senior Software Engineer | London or Remote (Worldwide) | Full-time
+KEEP ;; Acme | Senior Software Engineer | Toronto, Canada or REMOTE (global)
+KEEP ;; Acme | Senior Software Engineer | Remote (worldwide) | HQ in Berlin
+KEEP ;; Acme | Senior Software Engineer | San Francisco, CA; Seattle, WA; Toronto; Remote | Full-time
+KEEP ;; Acme | Senior Software Engineer | SF, CA or London, UK | Remote
+KEEP ;; Acme | Senior Software Engineer | Remote (ET or CET overlap)
+KEEP ;; Acme | Senior Software Engineer | Full-time<p>Fully remote, worldwide team. Founded in London in 2019.
+KEEP ;; Acme | Senior Software Engineer | Remote (U.S. or Canada)
+KEEP ;; Acme | Senior Software Engineer | Remote (U.S. only)
+KEEP ;; Acme | Software Engineer | Remote or Vancouver, WA
+KEEP ;; Acme | Software Engineer | Vancouver, WA | Remote (Hybrid ok)
+KEEP ;; Acme | Software Engineer | Remote | Dublin, OH
+KEEP ;; Acme | Software Engineer | Dublin, CA or Remote
+KEEP ;; Acme | Software Engineer | Remote or Melbourne, FL
+KEEP ;; Acme | Software Engineer | Remote | Warsaw, IN
+KEEP ;; Acme | Software Engineer | Remote (Pacific Northwest: Seattle, WA / Vancouver, BC)
+KEEP ;; Acme | Software Engineer | Remote (CET or ET)
+KEEP ;; Acme | Software Engineer | Remote (PT to CET)
+KEEP ;; Acme | Software Engineer | Remote (CET to PT)
+KEEP ;; Acme | Software Engineer | Remote (PT–CET)
+KEEP ;; Acme | Software Engineer | Remote (time zones between PT and CET)
+KEEP ;; Acme | Software Engineer | Remote (EU or ET)
+KEEP ;; Acme | Software Engineer | Remote (UK/ET)
+KEEP ;; Acme | Software Engineer | Remote (Europe, ET)
+KEEP ;; Acme | Software Engineer | Toronto or Remote (ET)
+KEEP ;; Acme | Software Engineer | Remote (can't hire outside the US)
+KEEP ;; Acme | Software Engineer | Remote (we cannot hire outside the US)
+KEEP ;; Acme | Software Engineer | REMOTE (but cannot hire outside of the US)
+KEEP ;; Acme | Software Engineer | Remote (not hiring outside the US)
+KEEP ;; Acme | Software Engineer | Remote (no non-US applicants)
+KEEP ;; Acme | Software Engineer | Remote | No visa sponsorship for non-US citizens
+KEEP ;; Acme | Software Engineer | Remote (including outside the US)
+KEEP ;; Acme | Software Engineer | Remote (outside US OK)
+KEEP ;; Acme | Software Engineer | Remote (non-US welcome)
+KEEP ;; Acme | Software Engineer | Full-time | https://acme.example<p>Fully remote. We can also hire outside the US through Deel.
+KEEP ;; Acme | Software Engineer | Remote (Worldwide, excluding US-embargoed countries)
+KEEP ;; Acme | Software Engineer | Remote (Worldwide, except US sanctioned countries)
+KEEP ;; Acme | Software Engineer | Remote (Global, excluding US sanctioned countries)
+KEEP ;; Acme | Software Engineer | Remote (Worldwide) | non-US hires as contractors
+KEEP ;; Acme | Software Engineer | Remote (global; non-US via Deel)
+KEEP ;; Acme | Software Engineer | London or Remote (anywhere)
+KEEP ;; Acme | Software Engineer | Remote anywhere, offices in London and NYC
+KEEP ;; Acme | Software Engineer | Remote (anywhere) | HQ in Berlin
+KEEP ;; Acme | Software Engineer | Onsite in Amsterdam or remote from anywhere
+KEEP ;; Acme | Software Engineer | Toronto, Canada or Remote (anywhere)
+KEEP ;; Acme | Software Engineer | Full-time<p>Remote anywhere. Offices in London and New York.
+KEEP ;; Acme | Software Engineer | Remote (Anywhere)
+KEEP ;; Acme | Software Engineer | REMOTE ANYWHERE | Full-time
+KEEP ;; Acme | Software Engineer | Remote - Anywhere
+KEEP ;; Acme | Software Engineer | Remote (US/EU timezones)
+KEEP ;; Acme | Software Engineer | Remote (Americas)
+KEEP ;; Acme | Software Engineer | Remote (US) | Full-time
+SKIP ;; Acme | Software Engineer | Full-time | https://acme.example<p>Fully remote, hiring anywhere outside the US.
+SKIP ;; Acme | Software Engineer | Full-time | https://acme.example<p>Fully remote. We only hire outside the US.
+SKIP ;; Acme | Software Engineer | Full-time | https://acme.example<p>Fully remote. We hire worldwide except the US.
+SKIP ;; Acme | Software Engineer | Remote (Global, excluding the US.)
+SKIP ;; Acme | Software Engineer | Remote (Americas, excluding US)
+SKIP ;; Acme | Software Engineer | Remote (North America, except the US)
+SKIP ;; Acme | Software Engineer | Remote (North America outside the US)
+SKIP ;; Acme | Software Engineer | Remote (LATAM / Americas, non-US)
+SKIP ;; Acme | Software Engineer | Remote (EU) | PT, 20 hours/week
+SKIP ;; Acme | Software Engineer | Remote (EU) | PT - 20 hrs/week
+SKIP ;; Acme | Software Engineer | Remote | Lisbon, PT (CET hours)
+SKIP ;; NonUS Co | Software Engineer | REMOTE (non-US)
+SKIP ;; Outside Co | Software Engineer | Remote (outside US only)
+SKIP ;; Global Co | Software Engineer | Remote (Global, excluding US)
+SKIP ;; Euro | Software Engineer | Remote (anywhere in Europe)
+SKIP ;; Berl | Software Engineer | Remote or Berlin, DE
+SKIP ;; Ind | Software Engineer | Remote | Bangalore, IN
+SKIP ;; Lis | Software Engineer | Remote | Lisbon, PT
+SKIP ;; K | Senior Software Engineer | Remote (EU) | PT/FT
+SKIP ;; L | Senior Software Engineer | Remote (non-U.S. only)
+SKIP ;; Acme | Software Engineer | Remote (Toronto, CA)
+KEEP ;; A1 | Senior Software Engineer (Global Payments) | Remote (US) ;; Senior Software Engineer (Global Payments)
+KEEP ;; A2 | Software Engineer (Global Platform) | Remote (US) ;; Software Engineer (Global Platform)
+KEEP ;; A3 | Senior Graphics Engineer (Rendering, AR/VR) | Remote (US) ;; Senior Graphics Engineer (Rendering, AR/VR)
+KEEP ;; A4 | Research Engineer (NLP, MT) | Remote (US) ;; Research Engineer (NLP, MT)
+KEEP ;; A5 | Software Engineer (Contracts) | Remote (US) ;; Software Engineer (Contracts)
+KEEP ;; Gamma | Engineer — $180k + equity | Remote (US) ;; Engineer
+KEEP ;; B1 | Senior Software Engineer – $160k-$200k + equity | Remote (US) ;; Senior Software Engineer
+KEEP ;; B2 | Senior Software Engineer: $180k-$220k base + equity | Remote (US) ;; Senior Software Engineer
+KEEP ;; B3 | Senior Engineer, $150k-$190k | Remote (US) ;; Senior Engineer
+KEEP ;; B4 | Senior Engineer (Remote, US) - $180k ;; Senior Engineer
+KEEP ;; B5 | Staff Engineer ~$250k | Remote (US) ;; Staff Engineer
+KEEP ;; B6 | Senior Engineer up to $200k + equity | Remote (US) ;; Senior Engineer
+KEEP ;; B7 | Contract Backend Engineer – $90-120/hr | Remote (US) ;; Contract Backend Engineer
+KEEP ;; B8 | Senior Software Engineer, 150k-200k + equity | Remote (US) ;; Senior Software Engineer
+KEEP ;; B9 | Senior Engineer, USD 150k-190k | Remote (US) ;; Senior Engineer
+KEEP ;; C1 | Senior Engineer — Remote (US) | Full-time ;; Senior Engineer
+KEEP ;; C2 | Senior Engineer — Full-time | Remote (US) ;; Senior Engineer
+KEEP ;; C3 | Senior Engineer (Remote) – US only ;; Senior Engineer
+KEEP ;; C4 | Senior Engineer, US Remote ;; Senior Engineer
+KEEP ;; C5 | Senior Engineer, Onsite/Remote (US) ;; Senior Engineer
+KEEP ;; C6 | Senior Engineer - Hybrid (NYC) or Remote (US) ;; Senior Engineer
+KEEP ;; D1 | Senior Engineer (Node.js/TypeScript) | Remote (US) ;; Senior Engineer (Node.js/TypeScript)
+KEEP ;; D2 | Full Stack Engineer, Node.js/React | Remote (US) ;; Full Stack Engineer, Node.js/React
+KEEP ;; E1 | Software Engineer (Backend) | Remote (US) ;; Software Engineer (Backend)
+KEEP ;; E2 | Senior Software Engineer (Remote, US) | Full-time ;; Senior Software Engineer
+KEEP ;; E3 | Software Engineer, Full-time | Remote (US) ;; Software Engineer
+KEEP ;; E4 | Contract Software Engineer | Remote (US) ;; Contract Software Engineer
+KEEP ;; E5 | Remote (US) | https://acme.com/careers/backend-engineer<p>We are hiring a Backend Engineer to own our API. ;; We are hiring a Backend Engineer to own our API.
+KEEP ;; E6 | Senior/Staff Engineer (Platform, Infra) | Remote (US) ;; Senior/Staff Engineer (Platform, Infra)
+KEEP ;; E7 | Full-Stack Engineer - Full-time | Remote (US) ;; Full-Stack Engineer
+KEEP ;; E8 | Software Engineer, Contracts Platform | Remote (US) ;; Software Engineer, Contracts Platform
+KEEP ;; Acme | Senior Software Engineer | London or Remote (anywhere in the world) | Full-time
+KEEP ;; Acme | Senior Software Engineer | Remote (anywhere in the world, CET overlap) | Full-time
+KEEP ;; Acme | Senior Software Engineer | Remote anywhere in the world, HQ in Berlin | Full-time
+KEEP ;; Acme | Full Stack Engineer | Amsterdam or remote from anywhere in the world | €70k-€100k
+KEEP ;; Acme | Senior Software Engineer | Toronto, ON or San Francisco, CA/Remote | Full-time
+KEEP ;; Acme | Senior Software Engineer | Vancouver, BC or Seattle, WA/Remote | Full-time
+KEEP ;; Acme | Senior Software Engineer | London, UK / Austin, TX/Remote | Full-time
+KEEP ;; Acme | Senior Software Engineer | Montreal, QC / New York, NY/Remote | Full-time
+KEEP ;; Acme | Senior ASP.NET Developer | Remote (US) | Full-time ;; Senior ASP.NET Developer
+KEEP ;; Acme | VB.NET Developer | Remote (US only) | Contract | $70/hr ;; VB.NET Developer
+KEEP ;; Acme | Senior Software Engineer (C#, ASP.NET Core) | Remote (US) | Full-time | $140k-$170k ;; Senior Software Engineer (C#, ASP.NET Core)
+KEEP ;; Acme | Senior Backend Engineer (Node.js, Socket.io) | Remote (US) | Full-time ;; Senior Backend Engineer (Node.js, Socket.io)
+KEEP ;; Acme | Senior Software Engineer, US Payments | Remote (US) | Full-time ;; Senior Software Engineer, US Payments
+KEEP ;; Acme | Senior Backend Engineer - US Tax Engine | Remote (US) | $170k-$200k ;; Senior Backend Engineer - US Tax Engine
+KEEP ;; Acme | Software Engineer, Canada Payroll | Remote (US/Canada) | Full-time ;; Software Engineer, Canada Payroll
+KEEP ;; Acme | Senior Engineer — Smart Contract Security | Remote (US) | Full-time ;; Senior Engineer — Smart Contract Security
+KEEP ;; Acme | Security Engineer (Smart Contract Audits) | Remote (US) | $180k-$220k ;; Security Engineer (Smart Contract Audits)
+KEEP ;; Acme | Software Engineer (contract, 6 months) | Remote (US) ;; Software Engineer
+KEEP ;; Acme | Founding Engineer (Remote/SF) | Remote (US) ;; Founding Engineer
+KEEP ;; C4 | Senior Backend Engineer | Remote (Europe & Americas, except US West Coast) | Full-time
+KEEP ;; C5 | Senior Backend Engineer | Remote (worldwide except US Pacific time) | Full-time
+KEEP ;; C7 | Senior Backend Engineer | Remote (EMEA + Americas, excluding US Pacific) | Full-time
+KEEP ;; Acme | REMOTE (US) | Full-time roles | https://acme.com/careers<p>Senior Backend Engineer (Python)<p>Staff Data Engineer ;; Senior Backend Engineer (Python)
+KEEP ;; Acme | Remote (US/Canada) | Contract roles | $80-120/hr<p>- Senior React Developer<p>- DevOps Engineer ;; Senior React Developer
+KEEP ;; Acme | Remote (US) | Onsite & remote positions | NYC<p>Senior Backend Engineer ;; Senior Backend Engineer
+KEEP ;; Acme | Remote US | Visa sponsorship for engineers | Full-time<p>Senior Software Engineer, Payments ;; Senior Software Engineer, Payments
+KEEP ;; C1 | Senior Backend Engineer | Remote (Europe or PT, 4h overlap) | Full-time
+KEEP ;; C2 | Senior Backend Engineer | Remote (CET or PT, 4h overlap required) | Full-time

@@ -1,5 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 
 import { scrapeJobs } from "../extension/scrapers/index.js";
 
@@ -9,6 +10,12 @@ globalThis.DOMParser = class {
     return { body: { textContent: String(html).replace(/<[^>]*>/g, "") } };
   }
 };
+
+/** Non-comment lines of tests/fixtures/<name>. */
+const fixture = (name) =>
+  readFileSync(new URL(`./fixtures/${name}`, import.meta.url), "utf8")
+    .split("\n")
+    .filter((l) => l.trim() && !l.startsWith("#"));
 
 const nowIso = (hoursAgo = 1) => new Date(Date.now() - hoursAgo * 3600 * 1000).toISOString();
 const nowS = (hoursAgo = 1) => Math.floor((Date.now() - hoursAgo * 3600 * 1000) / 1000);
@@ -442,4 +449,197 @@ test("Turing: an unexpected response shape fails loudly", async () => {
   fakeFetch(() => ({ body: { ok: true, items: [] } }));
   const { errors } = await scrapeJobs({ sites: ["turing"], title: "Software Engineer", count: 5, jobType: "contract" });
   assert.match(errors[0], /unexpected response/);
+});
+
+test("Turing: US-only wording keeps a job; only an explicit non-US place drops it", async () => {
+  const keep = [
+    "US only. Candidates located outside the US will not be considered.",
+    "Non-US applicants are not eligible for this role.",
+    "Candidates must reside in California or Texas.",
+    "You must be based in North America.",
+    "Must be in Pacific Time for daily standups.",
+    "Must reside in The United States.",
+    "Applications from outside the U.S. will not be reviewed.",
+  ];
+  const drop = ["Must reside in India.", "Open to candidates outside the US."];
+  fakeFetch(() => ({
+    body: {
+      success: true,
+      totalCount: keep.length + drop.length,
+      jobs: [...keep, ...drop].map((d, i) => turingRow(100 + i, { description: `<p>${d}</p>` })),
+    },
+  }));
+  const { jobs } = await scrapeJobs({ sites: ["turing"], title: "Software Engineer", count: 20, jobType: "contract" });
+  assert.deepEqual(
+    jobs.map((j) => Number(j.job_url.split("=").pop())).sort((a, b) => a - b),
+    keep.map((_, i) => 100 + i)
+  );
+});
+
+test("Hacker News: excluded US and named non-US places beat weak US signals", async () => {
+  const posts = [
+    "NonUS Co | Software Engineer | REMOTE (non-US)",
+    "Outside Co | Software Engineer | Remote (outside US only)",
+    "Global Co | Software Engineer | Remote (Global, excluding US)",
+    "Euro | Software Engineer | Remote (anywhere in Europe)",
+    "Berl | Software Engineer | Remote or Berlin, DE",
+    "Ind | Software Engineer | Remote | Bangalore, IN",
+    "Lis | Software Engineer | Remote | Lisbon, PT",
+    "Both | Software Engineer | Remote (US/Canada)",
+    "Zones | Software Engineer | Remote, PT/ET hours",
+    "Austin Co | Software Engineer | Remote or Austin, TX",
+    "Visa Co | Software Engineer | Remote (US) | No US visa sponsorship",
+  ];
+  // Distinct ages keep the newest-first order stable
+  fakeHn(posts.map((h, i) => comment(i + 1, `${h}<p>x`, 1 + i / 10)));
+  const { jobs } = await scrapeJobs({ sites: ["hackernews"], title: "Software Engineer", count: 20 });
+  assert.deepEqual(jobs.map((j) => j.company), ["Both", "Zones", "Austin Co", "Visa Co"]);
+});
+
+test("Hacker News: role parts that also carry pay, type or Remote keep their title", async () => {
+  const posts = [
+    "Acme | Senior Software Engineer (Remote, US) | Full-time",
+    "Beta | Software Engineer, Full-time | Remote (US)",
+    "Gamma | Software Engineer ($150k-$190k) | Remote (US)",
+    "Delta | Contract Software Engineer | Remote (US)",
+  ];
+  fakeHn(posts.map((h, i) => comment(i + 1, `${h}<p>Go.`, 1 + i / 10)));
+  const { jobs } = await scrapeJobs({ sites: ["hackernews"], title: "Software Engineer", count: 20 });
+  assert.deepEqual(
+    jobs.map((j) => [j.company, j.title, j.listing_type]),
+    [
+      ["Acme", "Senior Software Engineer", "Full-time"],
+      ["Beta", "Software Engineer", "Full-time"],
+      ["Gamma", "Software Engineer", ""],
+      ["Delta", "Contract Software Engineer", "Contract"],
+    ]
+  );
+  const { jobs: contract } = await scrapeJobs({
+    sites: ["hackernews"],
+    title: "Software Engineer",
+    count: 20,
+    jobType: "contract",
+  });
+  assert.deepEqual(contract.map((j) => j.company), ["Gamma", "Delta"]);
+});
+
+test("Hacker News: the US named beside exclusions, other places or worldwide keeps the post", async () => {
+  const keep = [
+    "A | Senior Software Engineer | Remote (US and non-US)",
+    "B | Senior Software Engineer | Remote (US preferred, non-US considered)",
+    "C | Senior Software Engineer | REMOTE (US or outside the US with 4h overlap)",
+    "D | Senior Software Engineer | Remote (U.S. or Canada)",
+    "E | Senior Software Engineer | London or Remote (Worldwide) | Full-time",
+    "F | Senior Software Engineer | Toronto, Canada or REMOTE (global)",
+    "G | Senior Software Engineer | San Francisco, CA; Seattle, WA; Toronto; Remote | Full-time",
+    "H | Senior Software Engineer | SF, CA or London, UK | Remote",
+    "I | Senior Software Engineer | Remote (ET or CET overlap)",
+    "J | Senior Software Engineer | Remote (US) | Visa sponsorship for non-US candidates",
+  ].map((h) => `${h}<p>x`);
+  const drop = [
+    "K | Senior Software Engineer | Remote (EU) | PT/FT<p>x",
+    "L | Senior Software Engineer | Remote (non-U.S. only)<p>x",
+  ];
+  const placeless = [
+    "M | Senior Software Engineer | Full-time | https://m.example<p>We're fully remote across the US, and we also hire outside the US as contractors.",
+    "N | Senior Software Engineer | Full-time<p>Fully remote, worldwide team. Founded in London in 2019.",
+  ];
+  const posts = [...keep, ...drop, ...placeless];
+  fakeHn(posts.map((h, i) => comment(i + 1, h, 1 + i / 10)));
+  const { jobs } = await scrapeJobs({ sites: ["hackernews"], title: "Software Engineer", count: 30 });
+  assert.deepEqual(jobs.map((j) => j.company), ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "M", "N"]);
+});
+
+test("Hacker News: a role's own parenthetical stays; a link is never the title", async () => {
+  const posts = [
+    "Back | Software Engineer (Backend) | Remote (US)<p>x",
+    "Rust | Senior Software Engineer (Rust) | Remote (US, $180k)<p>x",
+    "Url | Remote (US) | https://acme.example/careers/backend-engineer<p>We are hiring a Backend Engineer to own our API.",
+  ];
+  fakeHn(posts.map((h, i) => comment(i + 1, h, 1 + i / 10)));
+  const { jobs } = await scrapeJobs({ sites: ["hackernews"], title: "Backend Engineer", count: 10 });
+  assert.deepEqual(
+    jobs.map((j) => [j.company, j.title]),
+    [
+      ["Back", "Software Engineer (Backend)"],
+      ["Url", "We are hiring a Backend Engineer to own our API."],
+    ]
+  );
+  const { jobs: rust } = await scrapeJobs({ sites: ["hackernews"], title: "Rust Engineer", count: 10 });
+  assert.deepEqual(rust.map((j) => [j.company, j.title]), [["Rust", "Senior Software Engineer (Rust)"]]);
+});
+
+test("Turing: a stated non-US rule wins over the client's US base or an unrelated refusal", async () => {
+  const drop = [
+    "Work with a fast-growing US-based startup. This is a LATAM-only role.",
+    "Join a U.S.-based client. Must reside in India.",
+    "Tell us based on your experience. LATAM-only.",
+    "This role is India-only; applicants from other countries will not be considered.",
+    "Remote role open to non-US residents only.",
+    "This role is for non-US based engineers.",
+    "Brazil-only role. Send us only your English CV.",
+    "Our client, a fintech based in the US, is hiring. Must reside in India.",
+    "LATAM only. Must be in US time zones for standups.",
+    "<p>This role is only open to candidates outside the US.</p><p>Applicants who cannot overlap 4 hours with PST will not be considered.</p>",
+    "<ul><li>Location: outside the US</li><li>Candidates unable to commit 40 hours/week will not be considered</li></ul>",
+    "Candidates must be located in Eastern Europe.",
+    "Candidates must reside in South America.",
+    "Must be based in Central America.",
+    "Must be located in Ukraine.",
+    "Must reside in Latin American countries.",
+  ];
+  const keep = [
+    "Open to candidates in the US or Canada.",
+    "Open to US and LATAM-only candidates.",
+    "Must reside in Canada or the US.",
+    "US and non-US candidates welcome.",
+    "This role is US only. If you are outside the US, please do not apply.",
+    "Contact us only via the Turing portal.",
+  ];
+  fakeFetch(() => ({
+    body: {
+      success: true,
+      totalCount: drop.length + keep.length,
+      jobs: [...drop, ...keep].map((d, i) => turingRow(200 + i, { description: d.startsWith("<") ? d : `<p>${d}</p>` })),
+    },
+  }));
+  const { jobs } = await scrapeJobs({ sites: ["turing"], title: "Software Engineer", count: 50, jobType: "contract" });
+  assert.deepEqual(
+    jobs.map((j) => Number(j.job_url.split("=").pop())).sort((a, b) => a - b),
+    keep.map((_, i) => 200 + drop.length + i)
+  );
+});
+
+test("Hacker News: header fixtures keep or skip as US-remote, with clean titles", async () => {
+  const rows = fixture("hn-headers.txt").map((line, i) => {
+    const [expect, raw, title] = line.split(" ;; ");
+    // A company per post, or same-title rows would merge
+    const html = `Co${i}${raw.slice(raw.indexOf(" | "))}`;
+    return { id: 1000 + i, expect, html: html.includes("<p>") ? html : `${html}<p>We build things.`, raw, title };
+  });
+  fakeHn(rows.map((r, i) => comment(r.id, r.html, 1 + i / 1000)));
+  const { jobs } = await scrapeJobs({ sites: ["hackernews"], title: "", count: 500 });
+  const byId = new Map(jobs.map((j) => [Number(j.job_url.split("=").pop()), j]));
+  for (const r of rows) {
+    const job = byId.get(r.id);
+    assert.equal(job ? "KEEP" : "SKIP", r.expect, r.raw);
+    if (r.title !== undefined) assert.equal(job.title, r.title, r.raw);
+  }
+});
+
+test("Turing: location fixtures keep or drop a job for a US search", async () => {
+  const rows = fixture("turing-locations.txt").map((line, i) => {
+    const [expect, d] = line.split(" ;; ");
+    return { id: 5000 + i, expect, d };
+  });
+  fakeFetch(() => ({
+    body: {
+      success: true,
+      totalCount: rows.length,
+      jobs: rows.map((r) => turingRow(r.id, { description: r.d.startsWith("<") ? r.d : `<p>${r.d}</p>` })),
+    },
+  }));
+  const { jobs } = await scrapeJobs({ sites: ["turing"], title: "", count: 500, jobType: "contract" });
+  const kept = new Set(jobs.map((j) => Number(j.job_url.split("=").pop())));
+  for (const r of rows) assert.equal(kept.has(r.id) ? "KEEP" : "DROP", r.expect, r.d);
 });

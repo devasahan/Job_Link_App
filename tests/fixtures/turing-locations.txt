@@ -1,0 +1,223 @@
+# Turing description (HTML or text) => KEEP or DROP for a US search
+DROP ;; <ul><li>open to developers outside the us</li></ul>
+DROP ;; <ul><li>non-us residents only</li></ul>
+DROP ;; <p>This role is open to developers outside the us.</p>
+DROP ;; <p>Location: outside the us</p>
+DROP ;; <p>Open to non-us candidates only.</p>
+DROP ;; <p>Remote role for engineers based outside of the us.</p>
+DROP ;; <p>Open to developers outside the US</p>
+DROP ;; <p>Non-US residents only</p>
+KEEP ;; <p>Contact us only via the Turing portal.</p>
+KEEP ;; <p>Join us from anywhere.</p>
+DROP ;; <ul><li>This opportunity is only open to developers outside the US. US residents are not eligible.</li></ul>
+DROP ;; <ul><li>This opportunity is only open to developers outside the US.</li></ul>
+DROP ;; <p>Open to contractors outside the US; US citizens excluded.</p>
+DROP ;; <p>Open to contractors outside the US.</p>
+DROP ;; <p>This role is open to non-U.S. residents only. U.S. persons are not eligible.</p>
+DROP ;; <p>This role is open to non-U.S. residents only.</p>
+DROP ;; <ul><li>Open to non-US based contractors. You must be within US-friendly time zones (UTC-3 to UTC-8).</li></ul>
+DROP ;; <ul><li>Open to non-US based contractors.</li></ul>
+DROP ;; <ul><li>This engagement is for non-US based contractors.</li><li>You should be in US Eastern or Central time.</li></ul>
+DROP ;; <ul><li>This engagement is for non-US based contractors.</li></ul>
+DROP ;; <p>Open to candidates outside the US. U.S. citizens and permanent residents are not eligible for this contract.</p>
+DROP ;; <p>This role is for developers based outside the US. Must be in US Eastern time zone overlap.</p>
+DROP ;; <p>This role is for developers based outside the US. Must be available in US Pacific hours.</p>
+DROP ;; <p>This role is for developers based outside the US.</p><p>You must be within US time zones (EST/PST).</p>
+DROP ;; <p>Remote role open to non-US residents only.</p><p>You must be in US-overlapping time zones.</p>
+KEEP ;; <p>US citizens only. Candidates outside the US will not be considered.</p>
+KEEP ;; <p>Open to US residents only. Applicants outside the US are welcome to apply to other roles.</p>
+DROP ;; <ul><li>Open only to developers outside the US - US-based applicants will not be considered.</li></ul>
+DROP ;; <ul><li>This role is for non-US engineers only, as we cannot engage US-based contractors.</li></ul>
+DROP ;; <ul><li>Remote role open to non-US residents only, and not open to US residents.</li></ul>
+DROP ;; <ul><li>Open to developers based outside the US (US-based applicants are not eligible).</li></ul>
+DROP ;; <p>Open only to developers outside the US.</p>
+DROP ;; <p>This role is for non-US engineers only.</p>
+DROP ;; <p>Open to developers based outside the US.</p>
+DROP ;; <p>This position is open to candidates outside the US only. US-based candidates will not be considered.</p>
+DROP ;; <p>We can't hire in the US, so this role is open to engineers outside the US.</p>
+DROP ;; <p>Due to compliance reasons, we are unable to hire US residents; this role is open to non-US developers.</p>
+DROP ;; <p>Due to compliance reasons, we are unable to hire US residents. This role is open to non-US developers.</p>
+KEEP ;; <p>US only. Candidates located outside the US will not be considered.</p>
+KEEP ;; <p>Candidates outside the US will not be considered.</p>
+DROP ;; <ul><li>Location: LATAM-only, US time zone overlap required</li></ul>
+DROP ;; <p>This role is India-only, US client</p>
+DROP ;; <ul><li>Must be located in Brazil, US hours (EST) overlap required</li></ul>
+DROP ;; <ul><li>LATAM only, US Eastern hours</li></ul>
+DROP ;; <p>Must reside in India and US work authorization is not required.</p>
+DROP ;; <p>India-only role &amp; US-based client.</p>
+DROP ;; <p>This is a LATAM-only role, with overlap with US business hours.</p>
+DROP ;; <p>LATAM-only, working US hours.</p>
+DROP ;; <p>Must reside in Brazil, and overlap with US Eastern time.</p>
+DROP ;; <p>Must be based in LATAM and work US Pacific hours.</p>
+DROP ;; <p>Must be based in LATAM, and able to work US hours.</p>
+DROP ;; <p>LATAM-only, US East Coast hours</p>
+KEEP ;; <p>Must reside in Canada or the US.</p>
+DROP ;; <p>Must reside in LATAM and work US hours.</p>
+KEEP ;; <p>Applicants outside the U.S. (e.g. Canada, Mexico) will not be considered.</p>
+KEEP ;; <p>Applicants outside the US (e.g. Canada, Mexico) will not be considered.</p>
+KEEP ;; <p>Applicants located outside the US, i.e. in Canada or Mexico, are not eligible.</p>
+KEEP ;; <p>Candidates outside the U.S. Eastern or Central time zones will not be considered.</p>
+KEEP ;; <p>Contractors outside the U.S. Pacific time zone must overlap 4 hours with PST.</p>
+KEEP ;; <p>Candidates outside the U.S. will not be considered.</p>
+KEEP ;; <p>Applicants outside the United States (e.g. Canada, Mexico) will not be considered.</p>
+KEEP ;; <p>Applicants based outside the U.S. (e.g., Canada or Mexico) are not eligible.</p>
+KEEP ;; <p>Candidates located outside the U.S. Eastern time zone will not be considered.</p>
+KEEP ;; <p>Candidates outside the U.S. Eastern time zone are not eligible for this role.</p>
+KEEP ;; <p>Applicants residing outside the U.S. (e.g. in Canada) cannot be considered.</p>
+DROP ;; <p>Open to candidates outside the U.S. (e.g. Canada, Mexico).</p>
+KEEP ;; <p>Applicants outside the U.S. (such as Canada) will not be considered.</p>
+KEEP ;; <p>Applicants outside the U.S. will not be considered.</p>
+KEEP ;; <p>Contractors outside the US Pacific time zone must overlap 4 hours with PST.</p>
+KEEP ;; <p>Must be in EMEA or Americas time zones.</p>
+DROP ;; <p>Location: Remote</p><p>Plus, LATAM-only.</p>
+DROP ;; <p>About the founders: two ex-Google engineers.</p><p>We are hiring in LATAM only.</p>
+DROP ;; <h3>Location</h3><p>Candidates must currently reside in Brazil.</p>
+KEEP ;; <p>Candidates must be located in India or the US.</p>
+DROP ;; <p>This contract is only open to candidates residing in Eastern Europe.</p>
+DROP ;; <p>This contract is only open to engineers based in LATAM.</p>
+KEEP ;; <p>Overlap with US hours required. This contract is open to engineers in the US and LATAM-only firms.</p>
+DROP ;; <p>Only open to candidates from India, Pakistan or Bangladesh.</p>
+KEEP ;; <p>Only open to candidates from Canada or the United States.</p>
+KEEP ;; <p>Only open to candidates from the United States or Canada.</p>
+KEEP ;; <p>U.S. persons only (ITAR). Non-U.S. persons are not eligible.</p>
+KEEP ;; <p>Open to U.S. citizens only.</p>
+KEEP ;; <p>Must be a US citizen. Candidates outside the US cannot be considered.</p>
+DROP ;; <p>We hire talent outside the US only (US citizens and residents are not eligible due to tax rules).</p>
+KEEP ;; <p>Open to talent everywhere, inside and outside the U.S.</p>
+DROP ;; <p>Must be located in Central Europe.</p>
+DROP ;; <p>Must be located in the Philippines.</p>
+DROP ;; <p>Must be from Latin America.</p>
+DROP ;; <p>Must reside in Mexico City.</p>
+DROP ;; <p>Must be based in South Africa.</p>
+DROP ;; <p>Must be located in Taiwan.</p>
+DROP ;; <p>Must reside in Saudi Arabia.</p>
+DROP ;; <p>Must reside in Kazakhstan.</p>
+DROP ;; <p>Must be located in Hong Kong.</p>
+KEEP ;; <p>Must reside in Georgia, Florida, or Texas.</p>
+KEEP ;; <p>Must reside in Puerto Rico.</p>
+KEEP ;; <p><strong>Experience:</strong></p><p>5+ years</p><p>Stack: React<br>Node.js<br/>AWS</p>
+KEEP ;; <h3>About the role</h3><p>We&rsquo;re hiring a Go engineer.&nbsp;You&#39;ll build APIs.</p><ul><li><p>Minimum of 4 years of experience with Go</p></li><li>Kubernetes</li></ul>
+KEEP ;; <div>Requirements<ul><li>3-5 years of professional experience in TypeScript</li><li>Experience with React Native</li></ul></div>
+KEEP ;; <p>Senior engineer with 7+&nbsp;years of experience.</p><table><tr><td>Location</td><td>Remote (US)</td></tr></table>
+KEEP ;; Plain text description without tags. 6+ years of experience with Python. Location: US only.
+KEEP ;; <p>Experience required:<br>8 years of experience building backend systems</p>
+KEEP ;; <ul><li>Experience</li><li>4+ years</li></ul>
+KEEP ;; <p>Our client, a consultancy with an experience of 12 years</p><p>needs an engineer with experience of 6 years.</p>
+DROP ;; Work with a fast-growing US-based startup. This is a LATAM-only role.
+DROP ;; Join a U.S.-based client. Must reside in India.
+DROP ;; Tell us based on your experience. LATAM-only.
+DROP ;; This role is India-only; applicants from other countries will not be considered.
+DROP ;; Remote role open to non-US residents only.
+DROP ;; This role is for non-US based engineers.
+DROP ;; Open to non-US citizens.
+DROP ;; Brazil-only role. Send us only your English CV.
+DROP ;; Contact us only via the Turing portal. Must reside in India.
+DROP ;; Our client, a fintech based in the US, is hiring. Must reside in India.
+DROP ;; Location: LATAM only. You will join a U.S.-based client team.
+DROP ;; Turing is looking for engineers to work with a US-based company. Must reside in India.
+DROP ;; LATAM only. Must be in US time zones for standups.
+DROP ;; <p>This role is only open to candidates outside the US.</p><p>Applicants who cannot overlap 4 hours with PST will not be considered.</p>
+DROP ;; <ul><li>Location: outside the US</li><li>Candidates unable to commit 40 hours/week will not be considered</li></ul>
+DROP ;; Candidates must be located in Eastern Europe.
+DROP ;; Candidates must reside in South America.
+DROP ;; Must be based in Central America.
+DROP ;; Must be located in Ukraine.
+DROP ;; Must reside in Latin American countries.
+DROP ;; <li>Open to non-US based contractors. You must be within US-friendly time zones (UTC-3 to UTC-8).</li>
+DROP ;; <li>This engagement is for non-US based contractors.</li><li>You should be in US Eastern or Central time.</li>
+DROP ;; <li>Open only to developers outside the US - US-based applicants will not be considered.</li>
+DROP ;; <li>This role is for non-US engineers only, as we cannot engage US-based contractors.</li>
+DROP ;; <li>Remote role open to non-US residents only, and not open to US residents.</li>
+DROP ;; <li>Open to developers based outside the US (US-based applicants are not eligible).</li>
+DROP ;; <li>Location: LATAM-only, US time zone overlap required</li>
+DROP ;; <li>Must be located in Brazil, US hours (EST) overlap required</li>
+DROP ;; <li>LATAM only, US Eastern hours</li>
+DROP ;; <li>Candidates must reside in Lagos, Nigeria</li>
+DROP ;; <li>Must be based in Bangalore, India</li>
+DROP ;; <li>Must be based in Toronto, Canada</li>
+DROP ;; <li>Must reside in Ontario, Canada</li>
+DROP ;; <li>Candidates must be located in West Africa</li>
+DROP ;; <li>Candidates must be located in East Africa (Kenya, Uganda, Tanzania)</li>
+DROP ;; <li>Must be located in North Africa</li>
+DROP ;; <li>Must be based in Sub-Saharan Africa</li>
+DROP ;; <li>Must reside in Venezuela</li>
+DROP ;; <li>Must reside in Ecuador</li>
+DROP ;; <li>Must be located in Russia or Belarus</li>
+DROP ;; <li>Must be located in Taiwan</li>
+DROP ;; <li>Must reside in Saudi Arabia</li>
+DROP ;; <li>Must reside in Kazakhstan</li>
+DROP ;; <li>Must be located in Hong Kong</li>
+DROP ;; <li>Must reside in England</li>
+DROP ;; <li>open to developers outside the us</li>
+DROP ;; <li>non-us residents only</li>
+DROP ;; Must reside in India.
+DROP ;; Open to candidates outside the US.
+DROP ;; <p>For professionals in non-US countries.</p>
+KEEP ;; US only. Candidates located outside the US will not be considered.
+KEEP ;; Non-US applicants are not eligible for this role.
+KEEP ;; Candidates must reside in California or Texas.
+KEEP ;; You must be based in North America.
+KEEP ;; Must be in Pacific Time for daily standups.
+KEEP ;; Must reside in The United States.
+KEEP ;; Applications from outside the U.S. will not be reviewed.
+KEEP ;; Open to candidates in the US or Canada.
+KEEP ;; Open to US and LATAM-only candidates.
+KEEP ;; Must reside in Canada or the US.
+KEEP ;; US and non-US candidates welcome.
+KEEP ;; This role is US only. If you are outside the US, please do not apply.
+KEEP ;; Contact us only via the Turing portal.
+KEEP ;; <li>Open to U.S.-based or LATAM-based engineers only.</li>
+KEEP ;; <li>Open to US-based and Canada-based candidates only</li>
+KEEP ;; <li>Open to residents of the US, Canada, and Mexico only.</li>
+KEEP ;; <li>Open to US, Canada, and LATAM-based candidates only</li>
+KEEP ;; <li>Must reside in LATAM or North America (EST/CST/PST overlap)</li>
+KEEP ;; <li>Contractors must work within the EU's GDPR data protection rules when handling European user data.</li>
+KEEP ;; <li>Responses must be in UK English spelling</li>
+KEEP ;; <p>Code must be in Python 3.11.</p>
+KEEP ;; <p>Open to candidates inside or outside the US.</p>
+KEEP ;; <p>Must reside in the U.S. Familiarity with UK or Australian English is a plus.</p>
+KEEP ;; <p>Candidates must be located in the U.S. This project supports a client in Germany.</p>
+KEEP ;; You must reside in the U.S. Previous experience working with teams in India or Europe is a plus.
+KEEP ;; Must be based in the U.S. Our AI lab partner also has offices in Canada.
+KEEP ;; Must reside in the U.S.A. Experience with Latin America markets is a plus.
+KEEP ;; Must be located in the US to support our clients in Europe.
+KEEP ;; Must reside in the US but be available to overlap with our team in India.
+KEEP ;; Must be based in the United States while collaborating with teams in Brazil.
+KEEP ;; Must be located in the US Eastern time zone and overlap with our team in Europe.
+KEEP ;; Must be based in Vancouver, WA.
+KEEP ;; Must reside in Paris, Texas.
+DROP ;; <ul><li>Open to non-US based contractors. You must be within US-aligned time zones (UTC-3 to UTC-8).</li></ul>
+DROP ;; This role is for developers based outside the US. Must be in US East Coast time zone.
+DROP ;; This role is for developers based outside the US. Must be in US East or Central time.
+DROP ;; This role is for developers based outside the US. You must be within US working hours (9am-5pm EST).
+DROP ;; This role is for developers based outside the US. Must be in US (EST) time zone.
+DROP ;; Open to non-US developers. Must be within US/Canada time zones.
+DROP ;; Open to non-US developers. You should be within US core hours for daily standups.
+DROP ;; Open to engineers based outside the US, and not open to US residents.
+DROP ;; This role is open to developers based outside the US, as we are currently unable to engage US-based contractors.
+DROP ;; Open to contractors outside the US because Turing cannot hire US residents for this client project.
+DROP ;; This engagement is open to engineers located outside the United States, since we cannot contract with US persons.
+DROP ;; Open to developers based outside the US (this role is not open to US residents).
+DROP ;; Open to non-US residents, since we cannot hire in the US at this time.
+DROP ;; <p>Only candidates outside the US will be considered.</p>
+DROP ;; Only candidates located outside the United States will be considered.
+DROP ;; Only candidates outside the US are welcome to apply.
+DROP ;; This role is open to developers outside the US who are also fluent in English.
+DROP ;; This is a contract role (not full-time) open to developers outside the US.
+DROP ;; Currently not hiring in the US, open to engineers outside the US.
+DROP ;; Not a full-time role: open to contractors outside the US.
+DROP ;; Contract only (no benefits), open to talent based outside the United States.
+DROP ;; No US-based candidates – this role is for non-US contractors.
+DROP ;; This opportunity is open to developers outside the US working as independent contractors.
+DROP ;; This contract is open to engineers based outside the US working remotely with a Silicon Valley client.
+DROP ;; Open to non-US working professionals with 5+ years of experience.
+DROP ;; Must be based in Bangalore.
+DROP ;; Must be located in London.
+DROP ;; Must be based in Buenos Aires.
+DROP ;; Must reside in Ontario.
+DROP ;; Candidates must reside in Karachi, Lahore or Islamabad.
+DROP ;; Must be located in Lagos or Nairobi.
+DROP ;; Must be based in Bengaluru or Hyderabad for occasional in-person meetups.
+KEEP ;; Candidates outside the US will be considered.
+KEEP ;; We cannot hire candidates outside the US.
+KEEP ;; This role is not open to candidates outside the US.

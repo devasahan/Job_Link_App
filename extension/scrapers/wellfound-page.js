@@ -22,6 +22,7 @@
   const BASE = "https://wellfound.com";
   const BLOCKED_MSG =
     "Wellfound security check is open in a tab. Complete it, then press OK again.";
+  const RATE_MSG = "Wellfound is limiting requests (HTTP 429). Wait a few minutes, then retry.";
   const FORMAT_MSG = "Wellfound page format changed (no job data found in __NEXT_DATA__)";
   const APP_ROUTER_MSG =
     "Wellfound moved to a new page format (Next.js app router); the scraper needs updating";
@@ -319,7 +320,7 @@
 
   /**
    * One listing page →
-   *   {blocked} | {notFound} | {netError} | {status} | {formatError} | {end} | {jobs, connection}
+   *   {blocked} | {rateLimited} | {notFound} | {netError} | {status} | {formatError} | {end} | {jobs, connection}
    */
   async function listingPage(path, page, role) {
     const want = `${path}${page > 1 ? `?page=${page}` : ""}`;
@@ -335,9 +336,8 @@
     const data = nextData(html);
     const cache = data && apolloCache(data);
     if (!cache) {
-      if (res.status === 403 || res.status === 429 || isChallenge(html.slice(0, 20000))) {
-        return { blocked: true };
-      }
+      if (res.status === 403 || isChallenge(html.slice(0, 20000))) return { blocked: true };
+      if (res.status === 429) return { rateLimited: true };
       if (!res.ok) return { status: res.status };
       return { formatError: /self\.__next_f\.push/.test(html) ? APP_ROUTER_MSG : FORMAT_MSG };
     }
@@ -446,7 +446,8 @@
     for (const role of titleQ ? await roleCandidates(titleQ) : []) {
       const path = `/role/r/${role}`;
       const page = await listingPage(path, 1, role);
-      if (page.blocked) return finish({ error: BLOCKED_MSG });
+      if (page.blocked) return finish({ error: BLOCKED_MSG, blocked: true });
+      if (page.rateLimited) return finish({ error: RATE_MSG });
       if (page.jobs?.length) {
         source = { path, role };
         first = page;
@@ -463,8 +464,10 @@
       const page = n === 1 && first ? first : await listingPage(source.path, n, source.role);
       const failure = page.blocked
         ? BLOCKED_MSG
-        : page.netError || page.formatError || (page.status ? `Wellfound HTTP ${page.status}` : "");
-      if (failure) return finish({ error: failure, stopReason: "error" });
+        : page.rateLimited
+          ? RATE_MSG
+          : page.netError || page.formatError || (page.status ? `Wellfound HTTP ${page.status}` : "");
+      if (failure) return finish({ error: failure, stopReason: "error", blocked: !!page.blocked });
       if (page.end || page.notFound) break;
       if (n === 1 && !page.jobs.length) return finish({ error: FORMAT_MSG });
 
