@@ -137,3 +137,18 @@ KEEP ;; Acme | Remote (US) | Onsite & remote positions | NYC<p>Senior Backend En
 KEEP ;; Acme | Remote US | Visa sponsorship for engineers | Full-time<p>Senior Software Engineer, Payments ;; Senior Software Engineer, Payments
 KEEP ;; C1 | Senior Backend Engineer | Remote (Europe or PT, 4h overlap) | Full-time
 KEEP ;; C2 | Senior Backend Engineer | Remote (CET or PT, 4h overlap required) | Full-time
+KEEP ;; Acme | Senior Software Engineer, ASP.NET | Remote (US) | Full-time ;; Senior Software Engineer, ASP.NET
+KEEP ;; Acme | Software Developer - VB.NET | Remote (US) | Contract ;; Software Developer - VB.NET
+KEEP ;; Acme | Backend Engineer – Node.js / Socket.io | Remote (US) ;; Backend Engineer – Node.js / Socket.io
+KEEP ;; Acme | Senior Software Engineer - C#/ASP.NET | Remote (US) | Full-time ;; Senior Software Engineer - C#/ASP.NET
+KEEP ;; Acme | Remote (US) | acme.io<p>Senior Software Engineer ;; Senior Software Engineer
+SKIP ;; Acme | Senior Backend Engineer | Pune, IN | Full-time<p>We're a remote-first team; work from anywhere.
+SKIP ;; Acme | Software Engineer | Hamburg, DE | Full-time<p>Remote possible.
+SKIP ;; Acme | Software Engineer | Ottawa, CA | Full-time | https://acme.ca/careers<p>Remote-friendly; we meet quarterly in Ottawa.
+KEEP ;; Acme | Senior Engineer | Remote (anywhere in NA/EU) | Full-time
+KEEP ;; Acme | Senior Engineer | Toronto, ON or Remote (anywhere in North & South America) | Full-time
+KEEP ;; Acme | Senior Engineer | Remote (anywhere in North American time zones) | Vancouver office
+SKIP ;; Acme | Senior Engineer | Remote: anywhere in Canada
+KEEP ;; Acme | NYC (hybrid) or Remote (US) for senior engineers | Senior Backend Engineer | Full-time ;; Senior Backend Engineer
+KEEP ;; Acme | Remote US (engineers must overlap 10-2 ET) | Senior Backend Engineer | Full-time ;; Senior Backend Engineer
+KEEP ;; Acme | Remote-first (US) team of 15 engineers | Senior Backend Engineer | Full-time ;; Senior Backend Engineer

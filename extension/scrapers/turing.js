@@ -13,7 +13,7 @@
  * Jobs carry no country; only explicit non-US wording drops a job.
  */
 
-import { normalizeJob, resolveDatePreset, filterByRequest, stripHtml, BLOCK_TAG_RE } from "./util.js";
+import { normalizeJob, resolveDatePreset, filterByRequest, stripHtml, BLOCK_TAG_RE, CITY_COUNTRY } from "./util.js";
 
 const API = "https://work.turing.com/api/jobs/all";
 const BODY = { searchQuery: "", expertise: [], location: [], currentPage: 1, pageSize: 1000 };
@@ -37,9 +37,10 @@ const PLACE_IN_RE = new RegExp(PLACE, "i");
 const US_STATE_IN_RE = new RegExp(
   String.raw`,\s*(?:A[KLRZ]|C[AOT]|D[CE]|FL|GA|HI|I[ADLN]|K[SY]|LA|M[ADEINOST]|N[CDEHJMVY]|O[HKR]|PA|RI|S[CD]|T[NX]|UT|V[AT]|W[AIVY]|Alabama|Alaska|Arizona|Arkansas|California|Colorado|Connecticut|Delaware|Florida|Georgia|Hawaii|Idaho|Illinois|Indiana|Iowa|Kansas|Kentucky|Louisiana|Maine|Maryland|Massachusetts|Michigan|Minnesota|Mississippi|Missouri|Montana|Nebraska|Nevada|New Hampshire|New Jersey|New Mexico|New York|North Carolina|North Dakota|Ohio|Oklahoma|Oregon|Pennsylvania|Rhode Island|South Carolina|South Dakota|Tennessee|Texas|Utah|Vermont|Virginia|Washington|West Virginia|Wisconsin|Wyoming)\b`
 );
-// The US in the same list: "Canada or the US", "LATAM or North America (EST)"
+// The US in the same list: "Canada or the US", "LATAM or North America (EST)",
+// "an English-speaking country such as the US or UK"
 const US_IN_LIST_RE = new RegExp(
-  String.raw`(?:^|,|\/|\bor\b|\band\b|&)\s*(?:in )?${US_MEMBER}(?=\s*(?:$|[,)/.;(]|\bor\b|\band\b|\bonly\b))|(?:\/|\bor\b)\s*${US_MEMBER}(?=\s+time ?zones?)`,
+  String.raw`(?:^|,|\/|\bor\b|\band\b|&|\bsuch as\b|\blike\b|\beg\b|\bincluding\b)\s*(?:in )?${US_MEMBER}(?=\s*(?:$|[,)/.;(]|\bor\b|\band\b|\bonly\b))|(?:\/|\bor\b)\s*${US_MEMBER}(?:\s+(?:Eastern|Central|Pacific|Mountain|East Coast|West Coast))?(?=\s+time ?zones?)`,
   "i"
 );
 // …and before a place: "US/LATAM-only", "U.S.-based or LATAM-based", "the US, Canada, and Mexico only"
@@ -54,13 +55,23 @@ const OUTSIDE_RE = new RegExp(
 );
 // "not open to candidates outside the US", "including outside the US"
 // The negation must govern the phrase: same clause, no US in between
+// ("must also be based outside the US" is a requirement; " - " ends a clause)
 const NEGATED_BEFORE_RE =
-  /\b(?:no|not|never|cannot|can't|unable|won't|including|incl|also|even)\b(?:(?!\b(?:US|USA|United States)\b)[^.;,:()–—]){0,40}$/i;
+  /\b(?:no|not|never|cannot|can't|unable|won't|including|incl|(?<!\b(?:must|should|to) )also|even)\b(?:(?!\b(?:US|USA|United States)\b|\s-\s)[^.;,:()–—]){0,40}$/i;
 // …unless that phrase is turned away ("Candidates outside the US will not be
 // considered"), before any "US-based applicants" take over as the subject
 const REFUSED_AFTER_RE =
   /^(?:(?!\b(?:US|U\.S\.|USA)[- ](?:based|residents?|citizens?|persons?|applicants?|candidates?)\b)[^.;])*?\b(?:not (?:be )?(?:eligible|considered|accepted|reviewed|open)|cannot|can't|unable|ineligible|excluded|(?:do not|don't|need not) apply)\b/i;
 const WELCOME_AFTER_RE = /^\W*(?:[\w-]+\W+){0,2}(?:welcome|ok|okay|considered)\b/i;
+// A refusal counts only with the outside-US phrase as its subject
+// ("Candidates outside the US will not be considered"), not "Open to
+// contractors outside the US (not eligible for benefits)"
+const SUBJECT_BEFORE_RE = /^\W*(?:[\w-]+\W+){0,3}$/;
+const GOVERNED_RE = /\b(?:open|available|for|hire|hiring|engage|seeking|looking|recruiting|to)\b/i;
+const NEW_SUBJECT_RE = /[(,]\s*(?:candidates|applicants|contractors|developers|engineers|part-time|we|you|they|it)\b[\s\S]*$/i;
+// "We are unable to engage US-based contractors": the US is turned away
+const US_REFUSED_RE =
+  /\b(?:unable to|cannot|can't|not able to|do not|don't|won't)\s+(?:hire|engage|contract with|work with|accept)\s+(?:[\w-]+\s+){0,2}?(?:US|USA|United States)\b|\b(?:US|USA)[- ](?:based )?(?:residents?|citizens?|persons?|contractors?|applicants?|candidates?)\b[^.;]{0,30}\b(?:not (?:be )?(?:eligible|considered|accepted|open)|ineligible|excluded)\b|\bnot open to (?:[\w-]+\s+)?(?:US|USA)\b/i;
 // "Only candidates outside the US…" is a restriction
 const ONLY_BEFORE_RE = /\bonly\b[^.;,]{0,40}$/i;
 // "unable to engage US-based contractors" refuses the US, not the others
@@ -138,23 +149,31 @@ function nonUs(job) {
     // "e.g." doesn't end a sentence
     .replace(/\b(?:e\.g|i\.e|etc|vs|approx|incl)\./gi, (m) => m.replace(/\./g, ""))
     // The pronoun "us" isn't the country ("Tell us", "Send us only…")
-    .replace(/(?<!\bnon[- ]|\boutside (?:of )?(?:the )?)\bus\b/g, "_us_");
+    .replace(/(?<!\bnon[- ]|\boutside (?:of )?(?:the )?)\bus\b/g, "_us_")
+    // "North and South America" is the Americas, not South America
+    .replace(/\bNorth\s*(?:,|\/|&|\band\b|\bor\b)\s*(?:Central\s*,?\s*(?:and|or|&|\/)?\s*)?South Americ(?:an|a)\b/gi, "Americas");
   const usFirst = US_FIRST_RE.test(text);
+  const usRefused = US_REFUSED_RE.test(text);
   return text.split(/(?<=[.!?;])\s+|\n+/).some((s) => {
     const only = s.match(PLACE_ONLY_RE);
     if (only && !US_BEFORE_RE.test(s.slice(0, only.index))) return true;
     for (const m of s.matchAll(PLACE_RULE_RE)) {
       // "Must be located in the US to support our clients in Europe" is a US rule
       if (/^(?:in )?(?:the )?(?:US|USA|United States|North America)\b/i.test(m[1].trim())) continue;
-      if (PLACE_IN_RE.test(m[1]) && !US_IN_LIST_RE.test(m[1]) && !US_STATE_IN_RE.test(m[1])) return true;
+      const place = m[1].match(PLACE_IN_RE);
+      if (!place || US_IN_LIST_RE.test(m[1])) continue;
+      // "Toronto, CA" is Canada; "Vancouver, WA" and "Paris, Texas" are US namesakes
+      const code = m[1].slice(place.index + place[0].length).match(/^,\s*([A-Z]{2})\b/);
+      if ((code && CITY_COUNTRY[code[1]]?.test(place[0])) || !US_STATE_IN_RE.test(m[1])) return true;
     }
     for (const m of s.matchAll(OUTSIDE_RE)) {
       const before = s.slice(0, m.index);
       const after = s.slice(m.index + m[0].length);
       if (/\binside (?:or|and) $/i.test(before) || NEGATED_BEFORE_RE.test(before)) continue;
       if (ONLY_BEFORE_RE.test(before) || ONLY_AFTER_RE.test(after)) return true;
-      if (US_BEFORE_RE.test(before) || WELCOME_AFTER_RE.test(after)) continue;
-      const refused = after.match(REFUSED_AFTER_RE);
+      if (US_BEFORE_RE.test(before) || (!usRefused && WELCOME_AFTER_RE.test(after))) continue;
+      const subject = SUBJECT_BEFORE_RE.test(before) && !GOVERNED_RE.test(before);
+      const refused = subject && after.replace(NEW_SUBJECT_RE, "").match(REFUSED_AFTER_RE);
       const refusesUs = refused && REFUSES_US_RE.test(after.slice(refused[0].length));
       if (!usFirst && (!refused || refusesUs)) return true;
     }

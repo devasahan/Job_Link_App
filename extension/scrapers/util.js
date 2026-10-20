@@ -37,6 +37,27 @@ export function resolveDatePreset(id) {
 export const BLOCK_TAG_RE =
   /<\/?(?:p|div|li|ul|ol|br|h[1-6]|tr|td|th|table|section|article|header|footer|blockquote|pre|dd|dt)\b[^>]*>/gi;
 
+/**
+ * Cities whose country code is also a US state or time zone, so "Berlin, DE"
+ * and "Lisbon, PT" aren't read as Delaware or Pacific Time.
+ */
+export const CITY_COUNTRY = {
+  DE: /\b(?:berlin|munich|münchen|hamburg|frankfurt|cologne|köln|stuttgart|düsseldorf|dusseldorf|leipzig|dresden)\b/i,
+  IN: /\b(?:bangalore|bengaluru|hyderabad|pune|mumbai|delhi|chennai|gurgaon|gurugram|noida|kolkata|ahmedabad)\b/i,
+  IL: /\b(?:tel aviv|jerusalem|haifa|herzliya)\b/i,
+  CA: /\b(?:toronto|vancouver|montr[eé]al|ottawa|calgary|edmonton|winnipeg|qu[eé]bec)\b/i,
+  CO: /\b(?:bogot[aá]|medell[ií]n)\b/i,
+  AR: /\b(?:buenos aires|c[oó]rdoba)\b/i,
+  PT: /\b(?:lisbon|lisboa|porto|braga|coimbra)\b/i,
+  MT: /\b(?:valletta|sliema)\b/i,
+  MA: /\b(?:casablanca|rabat)\b/i,
+  ID: /\b(?:jakarta|bandung)\b/i,
+  AL: /\btirana\b/i,
+  AZ: /\bbaku\b/i,
+  TN: /\btunis\b/i,
+  ET: /\baddis ababa\b/i,
+};
+
 export function sleep(ms) {
   return new Promise((r) => setTimeout(r, ms));
 }

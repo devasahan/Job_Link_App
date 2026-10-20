@@ -221,3 +221,44 @@ DROP ;; Must be based in Bengaluru or Hyderabad for occasional in-person meetups
 KEEP ;; Candidates outside the US will be considered.
 KEEP ;; We cannot hire candidates outside the US.
 KEEP ;; This role is not open to candidates outside the US.
+KEEP ;; <p>Must be located in an English-speaking country such as the US, UK, Canada, or Australia.</p>
+KEEP ;; <p>Must be located in an English-speaking country such as the US or UK.</p>
+KEEP ;; <p>You must reside in a majority English-speaking country like the US, UK, Canada, Australia or New Zealand.</p>
+KEEP ;; <p>Should be based in a native English-speaking country like the US, Canada, or the UK.</p>
+KEEP ;; <p>Must be located in an English-speaking country, e.g. the US, UK, or Canada.</p>
+KEEP ;; <p>Must be located in LATAM or US Eastern time zones.</p>
+KEEP ;; <p>Must be within Europe or US East Coast time zones.</p>
+KEEP ;; <ul><li>Location: North and South America only</li></ul>
+KEEP ;; <ul><li>Location: North & South America only</li></ul>
+KEEP ;; <ul><li>Location: North/South America only</li></ul>
+KEEP ;; <p>Open to candidates across North and South America only.</p>
+KEEP ;; <p>This role is only open to candidates in North or South America.</p>
+KEEP ;; <p>Candidates should be located in North or South America to ensure overlap with EST.</p>
+KEEP ;; <p>Candidates should be based in North, Central, or South America.</p>
+KEEP ;; <p>We also hire developers outside the US.</p>
+KEEP ;; <p>Must be based in Vancouver, WA.</p>
+KEEP ;; <p>Must be based in Dublin, CA.</p>
+DROP ;; <ul><li>Location: Outside the US (candidates who can't overlap 4 hours with PST will not be considered)</li></ul>
+DROP ;; <p>This engagement is open to contractors based outside the US and is not eligible for medical or paid leave.</p>
+DROP ;; <p>Open to contractors outside the US (contractors are not eligible for benefits).</p>
+DROP ;; <p>Open to developers outside the US (part-time applicants will not be considered).</p>
+DROP ;; <p>Open to engineers based outside the US, as we cannot offer visa sponsorship or relocation.</p>
+DROP ;; <p>We are hiring developers based outside the US, and unfortunately we cannot sponsor visas.</p>
+DROP ;; <p>This role is open to developers outside the US, candidates without 4 hours of PST overlap will not be considered.</p>
+DROP ;; <p>Due to legal restrictions, we are unable to engage US-based contractors for this project. Developers outside the US are welcome to apply.</p>
+DROP ;; <p>We are unable to hire US residents for this project. Developers outside the US are welcome to apply.</p>
+DROP ;; <p>US residents are not eligible for this engagement. Engineers based outside the US are welcome.</p>
+DROP ;; <ul><li>Must have 5+ years of Python experience.</li><li>Must also be based outside the US.</li></ul>
+DROP ;; <p>Applicants must also reside outside the United States.</p>
+DROP ;; <p>Candidates should also be located outside the US.</p>
+DROP ;; <p>No benefits - open to contractors outside the US.</p>
+DROP ;; <p>Must be based in Toronto, CA.</p>
+DROP ;; <p>Must be based in Bengaluru, IN.</p>
+DROP ;; <p>Must be located in Medellín, CO.</p>
+DROP ;; <p>Must be based in Buenos Aires, AR.</p>
+DROP ;; <p>Must be located in Berlin, DE.</p>
+DROP ;; <p>Must be located in Tel Aviv, IL.</p>
+DROP ;; <p>Must be based in Jakarta, ID.</p>
+DROP ;; <p>Must be located in Central or South America.</p>
+DROP ;; <p>Must be based in LATAM to work with clients in the US and Canada.</p>
+KEEP ;; <p>Developers outside the US are welcome to apply.</p>

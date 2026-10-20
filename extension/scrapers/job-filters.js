@@ -28,13 +28,18 @@
     /\b(?:we|our|company|firm|agency|consultancy|founders?)\b[^.!?\n]*$/i;
   // …always when the company itself takes it ("a staffing firm having experience of 12 years")…
   const COMPANY_TAKES_RE =
-    /\b(?:company|firm|agency|consultancy|organi[sz]ation)\s+(?:(?:that|which)\s+)?(?:with|having|has|brings?|bringing)\s+(?:an?\s+)?$/i;
+    /\b(?:company|firm|agency|consultancy)\s+(?:(?:that|which)\s+)?(?:with|having|has|brings?|bringing)\s+(?:an?\s+)?$|\b(?:we|our\s+(?:[a-z]+\s+)?(?:team|company|firm|agency|consultants|recruiters|founders?))(?:,?\s+(?:that|which|who))?\s+(?:(?:also|now)\s+)?(?:bring|brings|have|has|boast|boasts)\s+(?:an?\s+)?$|\b(?:client|partner),\s+an?\s+(?:[\w-]+\s+){0,3}(?:company|firm|organi[sz]ation|business|startup)\s+(?:with|having|that\s+has)\s+(?:an?\s+)?$/i;
   // …but not when the sentence asks for a person ("We are looking for someone with experience of 5 years")
+  // (a hiring verb of the reader or the firm's clients doesn't count: "Whether
+  // you need a developer or a team, we bring an experience of 12 years")
   const HIRING_RE =
-    /\b(?:(?:looking|searching)\s+for|seeking|hiring(?:\s+for)?|needs?|wants?|requires?)\s+(?:an?\s|someone|somebody|candidates?|engineers?|developers?|professionals?)|\bideal\s+candidate\b|\b(?:must|should)\s+have\b/i;
-  // "Startup or agency experience of 3+ years" describes the experience
+    /(?<!\b(?:you|you're|you\s+are|your\s+\w+|companies|clients|businesses|enterprises|startups|organi[sz]ations|employers)(?:\s+(?:that|who))?\s+)\b(?:(?:looking|searching)\s+for|seeking|hiring(?:\s+for)?|needs?|wants?|requires?)\s+(?:an?\s|someone|somebody|candidates?|engineers?|developers?|professionals?)|\bideal\s+candidate\b|\b(?:must|should)\s+have\b|\bjoin\s+(?:our|the)\b|\bwhat\s+(?:we're|we\s+are)\s+looking\s+for\b|\b(?:requirements|qualifications)\b/i;
+  // "- Startup or agency experience of 3+ years", "Must have agency experience
+  // of 3 years" describe the experience ("We have agency experience…" doesn't)
   const MODIFIER_RE =
-    /(?:^|[\n:•*-]|\bor|\band|\bhave|\bhas|\bstrong|\bprior)\s*(?:[a-z-]+\s+)?(?:company|firm|agency|consultancy)\s*$/i;
+    /(?:(?:^|[\n:•*])\s*[-•*]?|\b(?:must|should)\s+have)\s*(?:(?:strong|prior|proven|some)\s+)?(?:[a-z-]+\s+(?:or|and)\s+)?(?:[a-z-]+\s+)?(?:company|firm|agency|consultancy)\s*$/i;
+  // "We are an IT staffing company | Experience: 12+ years" is a profile
+  const COMPANY_INTRO_RE = /\bwe\s+are\s+an?\s+[^.!?\n]*\b(?:company|firm|agency|consultancy)\b[^.!?\n]*$/i;
   // Bigger numbers are company history ("25 years of industry experience")
   const MAX_REQUIRED_YEARS = 15;
 
@@ -67,9 +72,20 @@
     }
     for (const match of s.matchAll(EXPERIENCE_FIRST_RE)) {
       const before = s.slice(Math.max(0, match.index - 80), match.index);
-      // "Experience: 5+ years" is a label, never a blurb ("Our Experience: 12 years" is)
+      // "3+ years of experience required – 5+ preferred", "No experience needed – 2 years of training"
+      if (
+        /^experience\s+(?:required|needed)/i.test(match[0]) &&
+        (/\d\s*\+?\s*(?:years?|yrs?)['’]?(?:\s+of)?(?:\s+[a-z][\w+#./-]*){0,6}\s*$/i.test(before) ||
+          /\bno\s+(?:prior\s+|previous\s+)?$/i.test(before))
+      ) {
+        continue;
+      }
+      // "Experience: 5+ years" starting a line or field is a label, never a blurb
+      // ("Our industry experience: 12 years", "deep domain experience - 12 years" aren't labels)
       const label =
-        /^experience(?:\s+(?:required|needed))?\s*(?::|-|–|—)/i.test(match[0]) && !/\bour\s*$/i.test(before);
+        /^experience(?:\s+(?:required|needed))?\s*(?::|-|–|—)/i.test(match[0]) &&
+        /(?:^|[\n|•*:.;]|\s-\s)\s*[-•*]?\s*$/.test(before) &&
+        !COMPANY_INTRO_RE.test(before);
       const blurb =
         COMPANY_TAKES_RE.test(before) ||
         (COMPANY_SENTENCE_RE.test(before) &&

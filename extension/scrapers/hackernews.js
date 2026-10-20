@@ -13,7 +13,7 @@
  * "global" or "worldwide".
  */
 
-import { normalizeJob, resolveDatePreset, filterByRequest } from "./util.js";
+import { normalizeJob, resolveDatePreset, filterByRequest, CITY_COUNTRY } from "./util.js";
 import { readJson } from "./http.js";
 
 const API = "https://hn.algolia.com/api/v1";
@@ -39,29 +39,14 @@ const US_ZONE_RE = /\b([ECMP]T)\b/g;
 // "PT/FT", "PT, 20 hours/week": part-time, not Pacific Time ("PT, 4h overlap" is)
 const PART_TIME_RE =
   /^PT(?:\s*\/\s*FT\b|\s*[,–-]?\s*\d+\s*(?:hours|hrs|h)\s*(?:\/|per|a)\s*(?:week|wk)\b)|FT\s*\/\s*$/;
-// Cities whose country code is also a US state or zone: "Berlin, DE", "Lisbon, PT"
-const CITY_COUNTRY = {
-  DE: /\b(?:berlin|munich|münchen|hamburg|frankfurt|cologne|köln|stuttgart|düsseldorf|dusseldorf|leipzig|dresden)\b/i,
-  IN: /\b(?:bangalore|bengaluru|hyderabad|pune|mumbai|delhi|chennai|gurgaon|gurugram|noida|kolkata|ahmedabad)\b/i,
-  IL: /\b(?:tel aviv|jerusalem|haifa|herzliya)\b/i,
-  CA: /\b(?:toronto|vancouver|montr[eé]al|ottawa|calgary|edmonton|winnipeg|qu[eé]bec)\b/i,
-  CO: /\b(?:bogot[aá]|medell[ií]n)\b/i,
-  AR: /\b(?:buenos aires|c[oó]rdoba)\b/i,
-  PT: /\b(?:lisbon|lisboa|porto|braga|coimbra)\b/i,
-  MT: /\b(?:valletta|sliema)\b/i,
-  MA: /\b(?:casablanca|rabat)\b/i,
-  ID: /\b(?:jakarta|bandung)\b/i,
-  AL: /\btirana\b/i,
-  AZ: /\bbaku\b/i,
-  TN: /\btunis\b/i,
-  ET: /\baddis ababa\b/i,
-};
-// Regions that include the US; "anywhere in Europe" doesn't
-const US_REGION_RE =
-  /\b(?:north america|americas|worldwide|global(?:ly)?)\b|\banywhere\b(?!\s+(?:in|within)\b(?!\s+the\s+(?:world|globe)\b))/i;
 const NON_US_TOKEN_RE = /\b(?:EU|EMEA|CET|UK|LATAM|APAC)\b/;
 const NON_US_WORD_RE =
   /\b(?:europe|european|united kingdom|canada|india|latin america|asia|australia|germany|france|spain|netherlands|poland|israel|brazil|mexico|switzerland|sweden|norway|denmark|finland|ireland|portugal|italy|austria|belgium|singapore|japan|london|berlin|zurich|toronto|vancouver|montreal|paris|amsterdam|dublin|bangalore|bengaluru|tel aviv|madrid|barcelona|lisbon|munich|stockholm|copenhagen|warsaw|sydney|melbourne)\b/i;
+// Regions that include the US; "anywhere in Europe" doesn't
+const US_REGION_RE = new RegExp(
+  String.raw`\b(?:north americ(?:a|an)|americas|worldwide|global(?:ly)?)\b|\banywhere\b(?!\s+(?:in|within)\s+(?:the\s+)?(?:${NON_US_TOKEN_RE.source}|${NON_US_WORD_RE.source}))`,
+  "i"
+);
 // "excluding US", "non-US", "outside the US" (not "US-sanctioned countries")
 const US_EXCLUSION_RE =
   /\b(?:(excluding|except)(?:\s+(?:for\s+)?the)?[\s-]+|non[- ]|outside\s+(?:of\s+)?(?:the\s+)?)(?:US|USA|U\.S\.(?:A\.?)?)(?!\w|\.\w|[\s-]*(?:sanction|embargo|ofac|west|east|pacific|mountain|central|eastern|western|time|hours|coast))/gi;
@@ -109,8 +94,9 @@ function segmentsOf(header) {
   return [header];
 }
 
-// "acme.com", "jobs.lever.co/acme"; not "ASP.NET" or "Socket.io)"
-const URL_RE = /https?:|www\.|\b[\w-]+\.(?:com|io|ai|co|org|net|dev|app|jobs|so|xyz|tech)(?:\/|$)/i;
+// "acme.com", "jobs.lever.co/acme"; not "Engineer, ASP.NET" or "Socket.io"
+const URL_RE =
+  /https?:|www\.|\b[\w-]+\.(?:com|io|ai|co|org|net|dev|app|jobs|so|xyz|tech)\/|^[\w.-]+\.(?:com|io|ai|co|org|net|dev|app|jobs|so|xyz|tech)$/i;
 // Pay amounts: "$150k", "USD 150k-190k", "$90-120/hr"
 const PAY_AMOUNT_RE = /(?:[$€£]|\b(?:USD|EUR|GBP)\s?)\s?\d[\d,.]*\s*k?|\b\d+(?:\.\d+)?\s*k\b|\/\s*(?:hr|hour|yr|year)\b/gi;
 // Words that only say where, how, how long or for how much
@@ -174,8 +160,13 @@ function usExclusions(text) {
   return found;
 }
 
+// "Pune, IN", "Hamburg, DE": a non-US city with its country code
+const namesForeignCity = (text) =>
+  [...text.matchAll(US_STATE_RE)].some((m) => CITY_COUNTRY[m[1]]?.test(cityBefore(text, m.index)));
+
 const namesPlace = (text) =>
   namesUs(text) ||
+  namesForeignCity(text) ||
   US_REGION_RE.test(text) ||
   usExclusions(text).length > 0 ||
   NON_US_TOKEN_RE.test(text) ||
@@ -246,11 +237,13 @@ function titleOf(segments, bodyLines, titleQuery) {
         // "Full-time roles", "Visa sponsorship for engineers" are not roles
         (ROLE_RE.test(s.replace(/\b(?:roles|positions)\b|\bfor\s+\w+\s*$/gi, "")) || !isPlaceOrMeta(s))
     );
+  // "Remote (US) for senior engineers" only when no plainer role part fits
+  const pick = (ok) => roles.find((s) => ok(s) && !isPlaceOrMeta(s)) || roles.find(ok);
   if (titleQuery) {
-    const hit = roles.find((s) => globalThis.jbTitleMatches(s, titleQuery));
+    const hit = pick((s) => globalThis.jbTitleMatches(s, titleQuery));
     if (hit) return hit;
   }
-  const role = roles.find((s) => ROLE_RE.test(s) && !GENERIC_ROLE_RE.test(s));
+  const role = pick((s) => ROLE_RE.test(s) && !GENERIC_ROLE_RE.test(s));
   if (role && !titleQuery) return role;
   // "Multiple roles": the body lists them
   const line = bodyLines.find(
