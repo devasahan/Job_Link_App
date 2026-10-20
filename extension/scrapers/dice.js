@@ -2,6 +2,8 @@
  * Dice.com via a real browser tab.
  * Search HTML embeds Next.js RSC flight data with jobList; extension-origin
  * fetches can be blocked, so scrape runs in page context (Jobright pattern).
+ * Results only carry a short summary, so the stack is matched by Dice's
+ * keyword search (title + stack).
  */
 
 import { resolveDatePreset, filterByRequest } from "./util.js";
@@ -32,7 +34,7 @@ export async function scrapeDice({
   const response = await chrome.runtime.sendMessage({
     type: "DICE_SCRAPE",
     payload: {
-      searchTerm: (title || searchTerm || "").trim(),
+      searchTerm: (searchTerm || "").trim(),
       title: (title || "").trim(),
       resultsWanted,
       hoursOld: preset.hoursOld,

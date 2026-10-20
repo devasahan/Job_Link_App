@@ -10,7 +10,7 @@ Fetches **remote-only US** jobs by calling the same public APIs / HTML endpoints
 |--------|----------------|
 | LinkedIn | Guest search cards — remote (`f_WT=2`) + US only (no Easy Apply search / no detail pages) |
 | Indeed | GraphQL `apis.indeed.com` — remote attribute `DSQF7` |
-| Wellfound | `POST api.orgupdate.com/search-jobs-v1` |
+| Wellfound | Tab scrape of `wellfound.com/role/r/<role>` (remote jobs for the Wellfound role your **Title** names, e.g. `Senior Software Engineer` → `software-engineer`; every remote role at `/remote` when the title isn't one), read from the page's `__NEXT_DATA__`. Keeps jobs open to remote workers in the US (or with no location limit). Wellfound has almost no contract listings |
 | Glassdoor | GraphQL via a real `glassdoor.com` tab (Cloudflare bypass) |
 | ZipRecruiter | Tab scrape of `ziprecruiter.com` jobs-search HTML |
 | Jobright | `swan-api.jobright.ai` visitor-search (the API behind the site's job-title search) — `workModel` Remote, `daysAgo` 1/3, `jobTypes` full-time or contract; empty title falls back to a `/remote-jobs` tab. The sheet links to the Jobright job page |
@@ -31,15 +31,16 @@ If you already had the extension loaded, click **Reload** on the card after upda
 - **Platforms** — multi-select
 - **Count** — max results **per platform** (1–200)
 - **Posted** — **Today** (last 24h) or **3 days** (last 72h); applied on each board’s date filter
-- **Type** — **Full time** or **Contract**. Each board is queried with that type. A job that clearly says the other type is dropped. Jobs that never say a type stay.
-- **Years** — optional. Enter `5` to keep jobs whose posting asks for **5.5 years or fewer** (`5+ years of experience`, `3-5 years experience`, and the same shapes). The highest stated requirement is used. Jobs that don’t mention years stay. No language model is used.
-- **Title** / **Stack** — search keywords (stack also filters title/description; the description is not written to the sheet)
+- **Type** — **Full time** or **Contract**. Each board is queried with that type. A job that clearly says the other type is dropped. Jobs that never say a type stay. Titles like `Contract Manager` are jobs about contracts, not contract jobs.
+- **Years** — optional. Enter `5` to keep jobs whose posting asks for **5.5 years or fewer** (`5+ years of experience`, `3-5 years experience`, `5 or more years of experience`, `Experience: 5+ years`, and the same shapes). The highest stated requirement is used. Company blurbs are ignored (`we have 15 years of experience`, `30 years of combined experience`, anything above 15 years). Jobs that don’t mention years stay. No language model is used.
+- **Title** / **Stack** — search keywords. Every board's keyword search gets title + stack, so LinkedIn, ZipRecruiter, Dice and Glassdoor match the stack against the whole posting on their side (their results carry little or no description). Indeed, Jobright and Wellfound also check each stack word against the description as a whole word (`Go` ≠ `Google`, `Java` ≠ `JavaScript`, `Node.js` = `NodeJS`). The description is not written to the sheet.
 - **OK** — opens a runner tab that scrapes in-browser and saves `.xlsx`
 
 ## Notes
 
 - Boards may rate-limit or change HTML/APIs; failed platforms are listed in the runner log while others still export.
-- **403 fixes:** the extension installs `declarativeNetRequest` header rules so Indeed gets the mobile Indeed App User-Agent, and Glassdoor/Wellfound get a normal browser Origin (not `chrome-extension://`). After updating, click **Reload** on the extension card (needed once so the background worker installs rules).
-- **Glassdoor / ZipRecruiter / Jobright / Dice Cloudflare:** scrape runs inside a real site tab. If a security page appears, complete it there and press OK again.
-- Title words must appear in the **job title** on every platform (whole words; `Sr` = `Senior`, `Front-End` = `Frontend`, `engineer` also matches `engineering`). Boards' keyword search also matches descriptions, so each scraper keeps paging until it has **Count** title matches or the board runs out. Stack tokens may match title or description.
-- Excel is built with SheetJS (`lib/xlsx.mini.min.js`).
+- **403 fixes:** the extension installs `declarativeNetRequest` header rules so its own Indeed API requests get the mobile Indeed App User-Agent and its Jobright API requests get a `jobright.ai` Origin. The rules skip requests made by those sites' own pages, so your normal browsing is untouched. Boards scraped in a site tab get no header changes. After updating, click **Reload** on the extension card (needed once so the rules install).
+- **Site tabs (Glassdoor / ZipRecruiter / Jobright / Dice / Wellfound):** the scrape runs inside a real site tab. A tab you already have open on that site is used as it is and never navigated away; otherwise a new tab opens. If a security page appears, complete it there and press OK again.
+- Title words must appear in the **job title** on every platform (whole words; `Sr` = `Senior`, `Front-End` = `Frontend`, `engineer` also matches `engineering`). Boards' keyword search also matches descriptions, so each scraper keeps paging until it has **Count** jobs that pass every filter (title, stack, years, type, date) or the board runs out. Indeed stops early once a whole page is older than the **Posted** window.
+- Excel is built with SheetJS (`lib/xlsx.mini.min.js`). Job URL and Direct URL cells are clickable links.
+- Tests: `npm test` from the repository root (Node 20+, no install needed).

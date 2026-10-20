@@ -7,7 +7,6 @@ import { scrapeJobright } from "./jobright.js";
 import { scrapeDice } from "./dice.js";
 import {
   acceptJob,
-  filterByStack,
   filterByTitle,
   requiredYearsFromText,
   resolveDatePreset,
@@ -48,7 +47,8 @@ export async function scrapeJobs({
 }) {
   const titleQ = (title || "").trim();
   const stackQ = (stack || "").trim();
-  // Empty title/stack → broad remote search on each board
+  // Boards search title + stack, so their full-text search checks the stack
+  // on the whole posting. Empty title/stack → broad remote search.
   const searchTerm = [titleQ, stackQ].filter(Boolean).join(" ").trim();
   if (!sites?.length) {
     throw new Error("Select at least one platform");
@@ -70,6 +70,7 @@ export async function scrapeJobs({
       const jobs = await fn({
         searchTerm,
         title: titleQ,
+        stack: stackQ,
         resultsWanted,
         datePreset: preset.id,
         years,
@@ -85,9 +86,8 @@ export async function scrapeJobs({
     }
   }
 
-  // Title filter only when title is non-empty; stack still optional
+  // Each scraper already applied the stack while paging, so Count holds
   let jobs = filterByTitle(all, titleQ);
-  jobs = filterByStack(jobs, stackQ);
   for (const job of jobs) {
     if (job.years_required == null || job.years_required === "") {
       const parsed = requiredYearsFromText(job.description || "");

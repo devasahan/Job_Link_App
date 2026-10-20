@@ -1,0 +1,9 @@
+{
+  "name": "job-link-app",
+  "private": true,
+  "type": "module",
+  "description": "JobBridge Fetch Chrome extension (load extension/ unpacked in Chrome).",
+  "scripts": {
+    "test": "node --test"
+  }
+}

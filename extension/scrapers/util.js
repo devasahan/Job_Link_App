@@ -8,7 +8,6 @@ export const DATE_PRESETS = {
     id: "today",
     label: "Today (24 hours)",
     hoursOld: 24,
-    wellfound: "today",
     glassdoorFromAge: 1,
     // ZipRecruiter HTML only accepts 1 | 5 | 10 | 30 (not 3)
     ziprecruiterDays: 1,
@@ -20,7 +19,6 @@ export const DATE_PRESETS = {
     id: "3days",
     label: "3 days (72 hours)",
     hoursOld: 72,
-    wellfound: "3days",
     glassdoorFromAge: 3,
     // nearest allowed ZR value that covers ~72h
     ziprecruiterDays: 5,
@@ -45,14 +43,6 @@ export function stripHtml(html) {
 
 export function formatLocation(parts) {
   return parts.filter(Boolean).join(", ");
-}
-
-export function tokenizeQuery(q) {
-  return String(q || "")
-    .replace(/,/g, " ")
-    .split(/\s+/)
-    .map((t) => t.trim().toLowerCase())
-    .filter((t) => t.length > 1);
 }
 
 /** Every title word (Sr = Senior, Front-End = Frontend, …) must be in the job title. */
@@ -91,10 +81,16 @@ export function acceptJob(job, { years, jobType } = {}) {
   return withinExperience(job, years) && matchesEmployment(job, jobType);
 }
 
-export function filterByRequest(jobs, { title, years, jobType, hoursOld } = {}) {
+/**
+ * Everything a board's results must pass. Pass `stack` only for boards that
+ * return the job description; boards searched with the stack words already
+ * checked the whole posting.
+ */
+export function filterByRequest(jobs, { title, stack, years, jobType, hoursOld } = {}) {
   let out = jobs;
   if (hoursOld) out = filterByHoursOld(out, hoursOld);
   if (title) out = filterByTitle(out, title);
+  if (stack) out = filterByStack(out, stack);
   return out.filter((job) => acceptJob(job, { years, jobType }));
 }
 
@@ -113,13 +109,10 @@ export function withinHours(datePosted, hoursOld) {
   return t >= cutoff;
 }
 
+/** Every stack word must be a whole word in the title or description. */
 export function filterByStack(jobs, stack) {
-  const tokens = tokenizeQuery(stack);
-  if (!tokens.length) return jobs;
-  return jobs.filter((j) => {
-    const blob = `${j.title || ""} ${j.description || ""}`.toLowerCase();
-    return tokens.every((t) => blob.includes(t));
-  });
+  if (!String(stack || "").trim()) return jobs;
+  return jobs.filter((j) => globalThis.jbStackMatches(j, stack));
 }
 
 /** Keep jobs whose date_posted is within hoursOld (when a parseable date exists). */

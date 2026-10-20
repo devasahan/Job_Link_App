@@ -1,6 +1,8 @@
 /**
  * LinkedIn guest job search — card list only (no detail fetches).
  * Remote US only (f_WT=2 + geoId). Title tokens enforced client-side.
+ * Cards carry no description, so the stack is matched by LinkedIn's
+ * keyword search (title + stack), which reads the whole posting.
  */
 
 import {
@@ -36,7 +38,7 @@ export async function scrapeLinkedIn({
 }) {
   const preset = resolveDatePreset(datePreset);
   const secondsOld = preset.hoursOld * 3600;
-  const keywords = (title || searchTerm || "").trim();
+  const keywords = (searchTerm || "").trim();
   const titleFilter = (title || "").trim();
   const listingType =
     jobType === "contract" ? "Contract" : jobType === "fulltime" ? "Full-time" : "";

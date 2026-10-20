@@ -1,13 +1,14 @@
 /**
  * Background service worker.
  * - Keeps declarativeNetRequest host access alive
- * - Runs Glassdoor / ZipRecruiter / Jobright / Dice scrapes inside real site tabs (avoids CF 403)
+ * - Runs Glassdoor / ZipRecruiter / Jobright / Dice / Wellfound scrapes inside real site tabs (avoids CF 403)
  */
 
 import { FALLBACK_CSRF, GLASSDOOR_QUERY } from "./scrapers/glassdoor-query.js";
 import { jobrightSearchUrl } from "./scrapers/jobright.js";
 
 const GD_URL = "https://www.glassdoor.com/Job/remote-jobs.htm";
+const WF_URL = "https://wellfound.com/remote";
 const ZR_URL = "https://www.ziprecruiter.com/jobs-search?search=remote&remote=1";
 
 function sleep(ms) {
@@ -62,15 +63,19 @@ async function withTabRetry(fn, attempts = 6) {
 }
 
 /**
- * Open or reuse a site tab. Avoids forcing focus on existing tabs (that
- * triggers "Tabs cannot be edited right now" when the user is switching tabs).
- * New tabs are opened focused so Cloudflare challenges are visible.
+ * Open or reuse a site tab. An open tab on the site is used as it is: the
+ * scrapers only fetch from its origin, so the user's page is never navigated
+ * away. No focus is forced on existing tabs (that triggers "Tabs cannot be
+ * edited right now" when the user is switching tabs). New tabs are opened
+ * focused so Cloudflare challenges are visible.
  */
-async function ensureSiteTab(urlPatterns, openUrl, { navigate = false } = {}) {
+async function ensureSiteTab(urlPatterns, openUrl) {
   return enqueueTabOp(() =>
     withTabRetry(async () => {
-      const existing = await chrome.tabs.query({ url: urlPatterns });
-      let tab = existing[0] || null;
+      // Discarded tabs can't run scripts
+      const existing = await chrome.tabs.query({ url: urlPatterns, discarded: false });
+      let tab =
+        existing.find((t) => t.status === "complete") || existing[0] || null;
 
       if (!tab) {
         tab = await chrome.tabs.create({ url: openUrl, active: true });
@@ -79,24 +84,17 @@ async function ensureSiteTab(urlPatterns, openUrl, { navigate = false } = {}) {
         return { tab: await chrome.tabs.get(tab.id), created: true };
       }
 
-      if (navigate && openUrl) {
-        await chrome.tabs.update(tab.id, { url: openUrl });
-        await waitTabComplete(tab.id);
-        await sleep(800);
-      } else if (tab.status !== "complete") {
-        await waitTabComplete(tab.id);
-      }
-
+      if (tab.status !== "complete") await waitTabComplete(tab.id);
       return { tab: await chrome.tabs.get(tab.id), created: false };
     })
   );
 }
 
 /** Run a page-context scraper with the shared title matcher preloaded. */
-async function runPageScrape(tabId, func, args) {
+async function runPageScrape(tabId, func, args, extraFiles = []) {
   await chrome.scripting.executeScript({
     target: { tabId },
-    files: ["scrapers/title-match.js", "scrapers/job-filters.js"],
+    files: ["scrapers/title-match.js", "scrapers/job-filters.js", ...extraFiles],
   });
   const [{ result }] = await chrome.scripting.executeScript({
     target: { tabId },
@@ -250,9 +248,9 @@ async function glassdoorPageScrape(args) {
       const company = view.header?.employerNameFromSearch || "";
       const location = view.header?.locationName || "Remote";
       const desc = view.job?.description || "";
-      const tmp = document.createElement("div");
-      tmp.innerHTML = desc;
-      const description = (tmp.textContent || "").replace(/\s+/g, " ").trim();
+      // DOMParser documents are inert: no images load, no handlers run
+      const parsed = new DOMParser().parseFromString(desc, "text/html");
+      const description = (parsed.body?.textContent || "").replace(/\s+/g, " ").trim();
       const kinds = globalThis.jbEmploymentKinds
         ? globalThis.jbEmploymentKinds(description, {
             bareContract: false,
@@ -549,8 +547,7 @@ async function runZipRecruiterScrape(payload) {
         "https://www.ziprecruiter.co.uk/*",
         "https://www.ziprecruiter.ca/*",
       ],
-      openUrl,
-      { navigate: true }
+      openUrl
     );
     // Wait for possible geo-redirect (.com → .ie etc.)
     await sleep(800);
@@ -814,8 +811,7 @@ async function runJobrightScrape(payload) {
       : "https://jobright.ai/remote-jobs";
     const { tab } = await ensureSiteTab(
       ["https://jobright.ai/*", "https://www.jobright.ai/*"],
-      openUrl,
-      { navigate: true }
+      openUrl
     );
     await sleep(1000);
     await chrome.scripting.executeScript({
@@ -1096,8 +1092,7 @@ async function runDiceScrape(payload) {
       `&filters.workplaceTypes=Remote&filters.postedDate=${posted}${employment}&language=en`;
     const { tab } = await ensureSiteTab(
       ["https://www.dice.com/*", "https://dice.com/*"],
-      openUrl,
-      { navigate: true }
+      openUrl
     );
     await sleep(1000);
     const result = await runPageScrape(tab.id, dicePageScrape, {
@@ -1117,6 +1112,47 @@ async function runDiceScrape(payload) {
     return {
       jobs: result.jobs || [],
       rawCount: result.rawCount ?? (result.jobs || []).length,
+      error: result.error || null,
+    };
+  } catch (err) {
+    return { error: err?.message || String(err) };
+  }
+}
+
+/** Runs in the Wellfound page context; the logic lives in scrapers/wellfound-page.js. */
+async function wellfoundPageScrape(args) {
+  return globalThis.jbWellfoundScrape(args);
+}
+
+async function runWellfoundScrape(payload) {
+  try {
+    const { tab } = await ensureSiteTab(["https://wellfound.com/*"], WF_URL);
+    const result = await runPageScrape(
+      tab.id,
+      wellfoundPageScrape,
+      {
+        title: payload.title || "",
+        stack: payload.stack || "",
+        resultsWanted: payload.resultsWanted || 50,
+        hoursOld: payload.hoursOld || 24,
+        years: payload.years ?? "",
+        jobType: payload.jobType || "",
+      },
+      ["scrapers/wellfound-page.js"]
+    );
+
+    if (!result) return { error: "Wellfound scrape returned nothing" };
+    if (result.error && !(result.jobs && result.jobs.length)) {
+      return { error: result.error };
+    }
+    return {
+      jobs: result.jobs || [],
+      rawCount: result.rawCount ?? (result.jobs || []).length,
+      pages: result.pages ?? 0,
+      hitPageLimit: Boolean(result.hitPageLimit),
+      stoppedOld: Boolean(result.stoppedOld),
+      dropped: result.dropped || null,
+      role: result.role || "",
       error: result.error || null,
     };
   } catch (err) {
@@ -1149,11 +1185,17 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       .catch((err) => sendResponse({ error: err?.message || String(err) }));
     return true;
   }
+  if (message?.type === "WELLFOUND_SCRAPE") {
+    runWellfoundScrape(message.payload || {})
+      .then(sendResponse)
+      .catch((err) => sendResponse({ error: err?.message || String(err) }));
+    return true;
+  }
   return undefined;
 });
 
 chrome.runtime.onInstalled.addListener(() => {
   console.info(
-    "JobBridge Fetch ready (Glassdoor / ZipRecruiter / Jobright / Dice use site tabs)."
+    "JobBridge Fetch ready (Glassdoor / ZipRecruiter / Jobright / Dice / Wellfound use site tabs)."
   );
 });

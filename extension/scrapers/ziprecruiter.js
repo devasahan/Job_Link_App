@@ -2,6 +2,8 @@
  * ZipRecruiter via a real browser tab (HTML jobs-search).
  * Extension-origin / API calls are Cloudflare-403'd; page-context works
  * after the tab loads (same pattern as Glassdoor).
+ * Cards carry no description, so the stack is matched by ZipRecruiter's
+ * keyword search (title + stack).
  */
 
 import { resolveDatePreset, filterByRequest } from "./util.js";
@@ -36,7 +38,7 @@ export async function scrapeZipRecruiter({
   const response = await chrome.runtime.sendMessage({
     type: "ZIPRECRUITER_SCRAPE",
     payload: {
-      searchTerm: (title || searchTerm || "").trim() || "remote",
+      searchTerm: (searchTerm || "").trim() || "remote",
       title: (title || "").trim(),
       resultsWanted,
       days,

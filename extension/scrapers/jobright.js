@@ -121,6 +121,7 @@ async function searchPage(title, daysAgo, position, jobType) {
 async function scrapeViaApi({
   query,
   title,
+  stack,
   resultsWanted,
   preset,
   years,
@@ -154,6 +155,7 @@ async function scrapeViaApi({
       ...filterByRequest(page, {
         hoursOld: preset.hoursOld,
         title,
+        stack,
         years,
         jobType,
       })
@@ -174,6 +176,7 @@ async function scrapeViaApi({
 async function scrapeViaTab({
   searchTerm,
   title,
+  stack,
   resultsWanted,
   preset,
   years,
@@ -202,6 +205,7 @@ async function scrapeViaTab({
   jobs = filterByRequest(jobs, {
     hoursOld: preset.hoursOld,
     title: title || "",
+    stack,
     years,
     jobType,
   });
@@ -225,6 +229,7 @@ async function scrapeViaTab({
 export async function scrapeJobright({
   searchTerm,
   title,
+  stack,
   resultsWanted,
   datePreset,
   years,
@@ -236,6 +241,8 @@ export async function scrapeJobright({
   const opts = {
     searchTerm,
     title: (title || "").trim(),
+    // Job-title search can't take stack words: check them on summary + requirements
+    stack,
     resultsWanted,
     preset,
     years,

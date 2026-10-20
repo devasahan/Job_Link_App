@@ -37,6 +37,17 @@ function downloadExcel(jobs) {
   }));
 
   const sheet = XLSX.utils.json_to_sheet(rows);
+  // Make the URL columns clickable
+  const headers = Object.keys(rows[0] || {});
+  for (const name of ["Job URL", "Direct URL"]) {
+    const c = headers.indexOf(name);
+    rows.forEach((row, i) => {
+      const url = row[name];
+      if (c < 0 || !/^https?:\/\//i.test(url)) return;
+      const cell = sheet[XLSX.utils.encode_cell({ r: i + 1, c })];
+      if (cell) cell.l = { Target: url };
+    });
+  }
   const book = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(book, sheet, "Jobs");
 

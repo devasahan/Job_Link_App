@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "JobBridge Fetch",
-  "version": "1.11.0",
+  "version": "1.12.0",
   "description": "Fetch remote US jobs from LinkedIn, Indeed, Wellfound, Glassdoor, ZipRecruiter, Jobright, and Dice, then download Excel.",
   "action": {
     "default_popup": "popup.html",
@@ -31,7 +31,6 @@
     "https://apis.indeed.com/*",
     "https://www.indeed.com/*",
     "https://www.linkedin.com/*",
-    "https://api.orgupdate.com/*",
     "https://www.glassdoor.com/*",
     "https://*.glassdoor.com/*",
     "https://wellfound.com/*",

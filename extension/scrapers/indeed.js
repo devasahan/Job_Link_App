@@ -12,6 +12,7 @@ import {
   employmentKinds,
   yearsFromExperienceLabels,
   requiredYearsFromText,
+  withinHours,
 } from "./util.js";
 import { blockedError, isBlockedResponse } from "./http.js";
 
@@ -78,7 +79,7 @@ function indeedJobTypeKey(jobType) {
 }
 
 function buildQuery(whatTerm, cursor, jobType) {
-  // Quote multi-word titles so Indeed treats them as a phrase when possible
+  // Escape for the GraphQL string; Indeed needs every word (title + stack)
   const escaped = (whatTerm || "").replace(/"/g, '\\"').trim();
   const what = escaped ? `what: "${escaped}"` : "";
   const location = `location: { where: "United States", radius: 100, radiusUnit: MILES }`;
@@ -116,6 +117,7 @@ function toDatePosted(ms) {
 export async function scrapeIndeed({
   searchTerm,
   title,
+  stack,
   resultsWanted,
   datePreset,
   years,
@@ -123,7 +125,7 @@ export async function scrapeIndeed({
   onProgress,
 }) {
   const preset = resolveDatePreset(datePreset);
-  const whatTerm = (title || searchTerm || "").trim();
+  const whatTerm = (searchTerm || "").trim();
   const titleFilter = (title || "").trim();
   const matched = [];
   const seen = new Set();
@@ -208,10 +210,17 @@ export async function scrapeIndeed({
       ...filterByRequest(pageJobs, {
         hoursOld: preset.hoursOld,
         title: titleFilter,
+        stack,
         years,
         jobType,
       })
     );
+
+    // Results are newest first: once a whole page is too old, the rest are too
+    const dated = pageJobs.filter((j) => j.date_posted);
+    if (dated.length && dated.every((j) => !withinHours(j.date_posted, preset.hoursOld))) {
+      break;
+    }
 
     cursor = search.pageInfo?.nextCursor || null;
     if (!cursor) break;

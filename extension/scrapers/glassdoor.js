@@ -2,6 +2,7 @@
  * Glassdoor via a real browser tab (page-context fetch).
  * Extension-origin requests are Cloudflare-403'd; same-origin from
  * www.glassdoor.com works after the tab loads.
+ * Searched with title + stack; Glassdoor's keyword search matches the stack.
  */
 
 import { resolveDatePreset, filterByRequest } from "./util.js";
@@ -32,7 +33,7 @@ export async function scrapeGlassdoor({
   const response = await chrome.runtime.sendMessage({
     type: "GLASSDOOR_SCRAPE",
     payload: {
-      searchTerm: (title || searchTerm || "").trim() || "remote",
+      searchTerm: (searchTerm || "").trim() || "remote",
       title: (title || "").trim(),
       resultsWanted,
       fromAge: preset.glassdoorFromAge,

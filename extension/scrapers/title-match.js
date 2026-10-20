@@ -23,6 +23,9 @@
     engr: "engineer",
     dev: "developer",
     swe: "software engineer",
+    postgresql: "postgres",
+    k8s: "kubernetes",
+    dotnet: "net",
   };
 
   function normalize(text) {
@@ -62,6 +65,20 @@
     return tokens.every((t) => tokenInWords(t, words));
   }
 
+  /**
+   * Every stack word must appear as a whole word in the title or description
+   * (Go ≠ Google, Java ≠ JavaScript, Node.js = NodeJS = Node).
+   */
+  function jbStackMatches(job, stack) {
+    const tokens = queryTokens(stack);
+    if (!tokens.length) return true;
+    const words = new Set(
+      normalize(`${job?.title || ""} ${job?.description || ""}`).split(" ")
+    );
+    return tokens.every((t) => words.has(t));
+  }
+
   globalThis.jbTitleMatches = jbTitleMatches;
   globalThis.jbTitleQueryTokens = queryTokens;
+  globalThis.jbStackMatches = jbStackMatches;
 })();
