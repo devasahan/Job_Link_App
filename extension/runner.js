@@ -1,5 +1,6 @@
 import { scrapeJobs } from "./scrapers/index.js";
 import { resolveDatePreset } from "./scrapers/util.js";
+import { loadDownloaded, rememberDownloaded } from "./scrapers/history.js";
 
 const statusEl = document.getElementById("status");
 const logEl = document.getElementById("log");
@@ -62,7 +63,7 @@ async function run() {
     return;
   }
 
-  const { title, stack, count, sites, datePreset, years, jobType } = pendingFetch;
+  const { title, stack, count, sites, datePreset, years, jobType, skipDownloaded } = pendingFetch;
   await chrome.storage.local.remove("pendingFetch");
 
   const preset = resolveDatePreset(datePreset);
@@ -72,13 +73,15 @@ async function run() {
     years === "" || years == null
       ? "—"
       : `${years} (keep jobs asking for ${Number(years) + 0.5} years or fewer)`;
+  // Older settings have no skipDownloaded: skipping is the default
+  const downloaded = skipDownloaded === false ? null : await loadDownloaded();
   log(
-    `Platforms: ${sites.join(", ")}\nCount (per site): ${count}\nPosted: ${preset.label}\nType: ${typeLabel}\nYears: ${yearsLabel}\nTitle: ${title || "—"}\nStack: ${stack || "—"}\nFilters: remote · US`
+    `Platforms: ${sites.join(", ")}\nCount (per site): ${count}\nPosted: ${preset.label}\nType: ${typeLabel}\nYears: ${yearsLabel}\nTitle: ${title || "—"}\nStack: ${stack || "—"}\nFilters: remote · US\nAlready downloaded: ${downloaded ? `skipped (${downloaded.size} remembered)` : "included"}`
   );
   setStatus("Fetching remote US jobs from selected platforms…");
 
   try {
-    const { jobs, errors } = await scrapeJobs({
+    const { jobs, errors, skipped } = await scrapeJobs({
       sites,
       title,
       stack,
@@ -86,25 +89,32 @@ async function run() {
       datePreset: preset.id,
       years: years === "" || years == null ? "" : Number(years),
       jobType: jobType === "contract" ? "contract" : "fulltime",
+      downloaded,
       onProgress: (msg) => log(msg),
     });
+    if (skipped) log(`Skipped ${skipped} job(s) you already downloaded`);
 
     if (errors.length) {
       log(`Warnings:\n- ${errors.join("\n- ")}`);
     }
 
     if (!jobs.length) {
-      setStatus(
-        errors.length
-          ? "No jobs found. See log for platform errors."
-          : "No jobs found for those filters.",
-        "error"
-      );
+      if (skipped) {
+        setStatus(`No new jobs: all ${skipped} matching job(s) were downloaded before.`);
+      } else {
+        setStatus(
+          errors.length
+            ? "No jobs found. See log for platform errors."
+            : "No jobs found for those filters.",
+          "error"
+        );
+      }
       return;
     }
 
     downloadExcel(jobs);
-    setStatus(`Downloaded ${jobs.length} job(s) as Excel.`, "success");
+    await rememberDownloaded(jobs);
+    setStatus(`Downloaded ${jobs.length}${downloaded ? " new" : ""} job(s) as Excel.`, "success");
     log(`Done — ${jobs.length} rows written to .xlsx`);
   } catch (err) {
     const msg = err?.message || String(err);

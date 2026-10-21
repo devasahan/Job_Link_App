@@ -1,3 +1,5 @@
+import { downloadedCount, forgetDownloaded } from "./scrapers/history.js";
+
 const form = document.getElementById("fetch-form");
 const statusEl = document.getElementById("status");
 const okBtn = document.getElementById("ok-btn");
@@ -11,6 +13,7 @@ const STORAGE_KEYS = [
   "years",
   "job_type",
   "known_sites",
+  "skip_downloaded",
 ];
 
 // Boards the popup had before known_sites was saved
@@ -43,6 +46,7 @@ async function restoreForm() {
   if (saved.years != null && saved.years !== "") {
     form.years.value = String(saved.years);
   }
+  form.skip_downloaded.checked = saved.skip_downloaded !== false;
   if (Array.isArray(saved.sites) && saved.sites.length) {
     const known = Array.isArray(saved.known_sites) ? saved.known_sites : FIRST_SITES;
     // Boards added since the last save keep their default (ticked)
@@ -51,6 +55,21 @@ async function restoreForm() {
     });
   }
 }
+
+const countEl = document.getElementById("downloaded-count");
+const forgetBtn = document.getElementById("forget-btn");
+
+async function showDownloaded() {
+  const n = await downloadedCount();
+  countEl.textContent = n ? `(${n} remembered)` : "";
+  forgetBtn.hidden = !n;
+}
+
+forgetBtn.addEventListener("click", async () => {
+  await forgetDownloaded();
+  await showDownloaded();
+  setStatus("Forgot downloaded jobs: the next run includes them again.");
+});
 
 form.querySelectorAll("[data-pick]").forEach((button) => {
   button.addEventListener("click", () => {
@@ -80,6 +99,7 @@ form.addEventListener("submit", async (event) => {
     }
   }
   const sites = selectedSites();
+  const skipDownloaded = form.skip_downloaded.checked;
 
   if (!sites.length) {
     setStatus("Select at least one platform.", "error");
@@ -98,7 +118,8 @@ form.addEventListener("submit", async (event) => {
     years,
     job_type: jobType,
     known_sites: siteBoxes().map((el) => el.value),
-    pendingFetch: { title, stack, count, sites, datePreset, years, jobType },
+    skip_downloaded: skipDownloaded,
+    pendingFetch: { title, stack, count, sites, datePreset, years, jobType, skipDownloaded },
   });
 
   await chrome.tabs.create({
@@ -109,3 +130,4 @@ form.addEventListener("submit", async (event) => {
 });
 
 restoreForm();
+showDownloaded();

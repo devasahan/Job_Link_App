@@ -18,6 +18,7 @@ import {
   requiredYearsFromText,
   resolveDatePreset,
 } from "./util.js";
+import { normalizeWords } from "./history.js";
 
 const SCRAPERS = {
   indeed: scrapeIndeed,
@@ -46,8 +47,11 @@ const SCRAPERS = {
  *   datePreset?: string,
  *   years?: number | "",
  *   jobType?: "fulltime" | "contract" | "",
+ *   downloaded?: { has(job): boolean, recentCount(site: string, hours: number): number },
  *   onProgress?: (msg: string) => void
  * }} opts
+ * With `downloaded`, jobs from earlier downloads are left out (counted in
+ * `skipped`) and each board is asked for more, so Count new jobs still fit.
  */
 export async function scrapeJobs({
   sites,
@@ -57,6 +61,7 @@ export async function scrapeJobs({
   datePreset,
   years,
   jobType,
+  downloaded,
   onProgress,
 }) {
   const titleQ = (title || "").trim();
@@ -81,11 +86,13 @@ export async function scrapeJobs({
     }
     try {
       onProgress?.(`Fetching ${site}…`);
+      // Jobs downloaded before may fill this board's first results again
+      const repeats = downloaded ? downloaded.recentCount(site, preset.hoursOld) : 0;
       const jobs = await fn({
         searchTerm,
         title: titleQ,
         stack: stackQ,
-        resultsWanted,
+        resultsWanted: Math.min(400, resultsWanted + repeats),
         datePreset: preset.id,
         years,
         jobType,
@@ -111,15 +118,10 @@ export async function scrapeJobs({
   jobs = jobs.filter((job) => acceptJob(job, { years, jobType }));
 
   // One row per title + company, across all platforms (first one wins)
-  const norm = (s) =>
-    String(s || "")
-      .toLowerCase()
-      .replace(/[^a-z0-9+#]+/g, " ")
-      .trim();
   const seen = new Set();
   jobs = jobs.filter((j) => {
-    const title = norm(j.title);
-    const company = norm(j.company);
+    const title = normalizeWords(j.title);
+    const company = normalizeWords(j.company);
     // Turing lists every role under its own name: there the link is the identity
     const key = title && company && j.site !== "turing" ? `${title}|${company}` : j.job_url;
     if (!key) return true;
@@ -128,5 +130,19 @@ export async function scrapeJobs({
     return true;
   });
 
-  return { jobs, errors, datePreset: preset };
+  // Leave out earlier downloads, then Count per board again
+  let skipped = 0;
+  if (downloaded) {
+    const perSite = {};
+    jobs = jobs.filter((j) => {
+      if (downloaded.has(j)) {
+        skipped += 1;
+        return false;
+      }
+      perSite[j.site] = (perSite[j.site] || 0) + 1;
+      return perSite[j.site] <= resultsWanted;
+    });
+  }
+
+  return { jobs, errors, skipped, datePreset: preset };
 }

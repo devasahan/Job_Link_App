@@ -100,6 +100,11 @@ form {
   text-decoration: underline;
 }
 
+.forget {
+  align-self: flex-start;
+  margin-top: -8px;
+}
+
 .platforms legend {
   padding: 0 4px;
   font-size: 12px;

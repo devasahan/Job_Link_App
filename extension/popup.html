@@ -146,11 +146,17 @@
         />
       </label>
 
+      <label class="check">
+        <input type="checkbox" id="skip_downloaded" name="skip_downloaded" checked />
+        <span>Skip jobs I already downloaded <span id="downloaded-count" class="hint"></span></span>
+      </label>
+      <button type="button" id="forget-btn" class="link forget" hidden>Forget downloaded jobs</button>
+
       <button type="submit" id="ok-btn" class="ok">OK</button>
     </form>
 
     <p id="status" class="status" role="status" aria-live="polite"></p>
 
-    <script src="popup.js"></script>
+    <script type="module" src="popup.js"></script>
   </body>
 </html>
