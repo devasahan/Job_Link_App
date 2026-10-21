@@ -229,3 +229,15 @@ test("years: sentence fixtures", () => {
     assert.equal(requiredYearsFromText(text.replace(/\\n/g, "\n")), want, text);
   }
 });
+
+test("employment: Both keeps full-time and contract, drops part-time and internships", () => {
+  assert.ok(matchesEmployment(job({ listing_type: "Full-time" }), "both"));
+  assert.ok(matchesEmployment(job({ listing_type: "CONTRACTS" }), "both"));
+  assert.ok(matchesEmployment(job({ title: "Contract Software Engineer" }), "both"));
+  assert.ok(matchesEmployment(job({ listing_type: "Full-time, Contract" }), "both"));
+  assert.ok(matchesEmployment(job({}), "both"), "unstated stays");
+  assert.ok(!matchesEmployment(job({ listing_type: "Part-time" }), "both"));
+  assert.ok(!matchesEmployment(job({ title: "Software Engineering Intern" }), "both"));
+  assert.ok(keeps(job({ listing_type: "Contract" }), { jobType: "both" }));
+  assert.ok(!keeps(job({ listing_type: "Internship" }), { jobType: "both" }));
+});

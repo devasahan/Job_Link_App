@@ -165,13 +165,18 @@
     });
   }
 
+  /** jobType "fulltime", "contract" or "both" (either one; part-time and internships go). */
   function matchesEmployment(job, jobType) {
-    const want =
-      jobType === "contract" ? "contract" : jobType === "fulltime" ? "fulltime" : "";
-    if (!want) return true;
+    const wanted =
+      jobType === "both"
+        ? ["fulltime", "contract"]
+        : jobType === "contract" || jobType === "fulltime"
+          ? [jobType]
+          : [];
+    if (!wanted.length) return true;
     const kinds = detectEmployment(job);
     if (!kinds.length) return true;
-    return kinds.includes(want);
+    return kinds.some((k) => wanted.includes(k));
   }
 
   /** Keep the job when it asks for years <= userYears + 0.5. Unstated years stay. */

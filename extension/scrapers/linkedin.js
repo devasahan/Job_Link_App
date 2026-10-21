@@ -72,6 +72,7 @@ export async function scrapeLinkedIn({
     });
     if (jobType === "fulltime") params.set("f_JT", "F");
     else if (jobType === "contract") params.set("f_JT", "C");
+    else if (jobType === "both") params.set("f_JT", "F,C");
 
     const res = await fetch(`${SEARCH_URL}?${params}`, {
       headers: {

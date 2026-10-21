@@ -68,7 +68,8 @@ async function run() {
 
   const preset = resolveDatePreset(datePreset);
 
-  const typeLabel = jobType === "contract" ? "Contract" : "Full time";
+  const type = ["contract", "both"].includes(jobType) ? jobType : "fulltime";
+  const typeLabel = { fulltime: "Full time", contract: "Contract", both: "Full time + contract" }[type];
   const yearsLabel =
     years === "" || years == null
       ? "—"
@@ -88,7 +89,7 @@ async function run() {
       count,
       datePreset: preset.id,
       years: years === "" || years == null ? "" : Number(years),
-      jobType: jobType === "contract" ? "contract" : "fulltime",
+      jobType: type,
       downloaded,
       onProgress: (msg) => log(msg),
     });

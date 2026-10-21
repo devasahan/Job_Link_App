@@ -40,7 +40,7 @@ async function restoreForm() {
   if (saved.date_preset === "today" || saved.date_preset === "3days") {
     form.date_preset.value = saved.date_preset;
   }
-  if (saved.job_type === "fulltime" || saved.job_type === "contract") {
+  if (["fulltime", "contract", "both"].includes(saved.job_type)) {
     form.job_type.value = saved.job_type;
   }
   if (saved.years != null && saved.years !== "") {
@@ -88,7 +88,7 @@ form.addEventListener("submit", async (event) => {
   const count = Math.max(1, Math.min(200, Number(form.count.value) || 50));
   const datePreset =
     form.date_preset.value === "3days" ? "3days" : "today";
-  const jobType = form.job_type.value === "contract" ? "contract" : "fulltime";
+  const jobType = ["contract", "both"].includes(form.job_type.value) ? form.job_type.value : "fulltime";
   const yearsRaw = form.years.value.trim();
   let years = "";
   if (yearsRaw !== "") {
