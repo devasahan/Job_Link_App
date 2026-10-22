@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "JobBridge Fetch",
-  "version": "1.15.0",
+  "version": "1.16.0",
   "description": "Fetch remote US jobs from 14 boards (LinkedIn, Indeed, Wellfound, Dice, Himalayas, HN Who's hiring and more), then download Excel.",
   "action": {
     "default_popup": "popup.html",

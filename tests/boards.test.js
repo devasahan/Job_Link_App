@@ -136,3 +136,42 @@ test("Jobright: title-only search, stack checked while paging so Count holds", a
   assert.deepEqual(jobs.map((j) => j.company), ["Co b"]);
   assert.equal(bodies.length, 2, "paged past the non-React job, then stopped at Count");
 });
+
+test("Jobright: jobs whose original post is on LinkedIn are left out", async () => {
+  const publish = new Date(Date.now() - 3600 * 1000).toISOString().replace("T", " ").slice(0, 19);
+  const item = (id, extra = {}, company = {}) => ({
+    jobResult: { jobId: id, jobTitle: "Software Engineer", isRemote: true, publishTime: publish, jobSummary: "Build APIs.", requirements: [], ...extra },
+    companyResult: { companyName: `Co ${id}`, ...company },
+  });
+  const list = [
+    item("a", { applyLink: "https://www.linkedin.com/jobs/view/4012345678/" }),
+    item("b", { applyLink: "https://boards.greenhouse.io/acme/jobs/1" }),
+    item("c", { applyLink: "https://acme.example/careers/2" }, { companyLinkedinURL: "https://www.linkedin.com/company/acme" }),
+    item("d", { applyLink: "https://jobs.lever.co/acme/3", jobSummary: "Apply on LinkedIn or our site." }),
+    item("e", { source: { originalUrl: "https://lnkd.in/gAbCdEf" } }),
+  ];
+  globalThis.fetch = async (url, init) => {
+    const body = JSON.parse(init.body);
+    return { ok: true, status: 200, json: async () => ({ success: true, result: { jobList: body.position === 0 ? list : [], jobNum: list.length } }) };
+  };
+  const progress = [];
+  const { jobs } = await scrapeJobs({ sites: ["jobright"], title: "Software Engineer", count: 10, onProgress: (m) => progress.push(m) });
+  assert.deepEqual(jobs.map((j) => j.company), ["Co b", "Co c", "Co d"]);
+  assert.ok(progress.some((m) => /2 leading to LinkedIn left out/.test(m)), progress.join("\n"));
+  assert.ok(!progress.some((m) => /had no original links/.test(m)));
+});
+
+test("Jobright: when no job carries its original link, the log says so", async () => {
+  const publish = new Date(Date.now() - 3600 * 1000).toISOString().replace("T", " ").slice(0, 19);
+  globalThis.fetch = async (url, init) => {
+    const body = JSON.parse(init.body);
+    const list = body.position === 0
+      ? [{ jobResult: { jobId: "x", jobTitle: "Software Engineer", isRemote: true, publishTime: publish }, companyResult: { companyName: "Co x" } }]
+      : [];
+    return { ok: true, status: 200, json: async () => ({ success: true, result: { jobList: list, jobNum: 1 } }) };
+  };
+  const progress = [];
+  const { jobs } = await scrapeJobs({ sites: ["jobright"], title: "Software Engineer", count: 10, onProgress: (m) => progress.push(m) });
+  assert.equal(jobs.length, 1);
+  assert.ok(progress.some((m) => /had no original links/.test(m)), progress.join("\n"));
+});

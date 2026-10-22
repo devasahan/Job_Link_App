@@ -253,3 +253,12 @@ test("title: developer and engineer are the same job", () => {
   assert.ok(!titleMatches("Product Designer", "Python Developer"));
   assert.ok(!titleMatches("Java Engineer", "Python Developer"));
 });
+
+test("job record links: LinkedIn job posts are found anywhere, plain text isn't", () => {
+  const links = (record) => globalThis.jbRecordLinks(record, "jobright.ai");
+  assert.deepEqual(links({ a: { b: ["https://www.linkedin.com/jobs/view/123"] } }), { linkedIn: true, outside: true });
+  assert.deepEqual(links({ url: "https://lnkd.in/abc" }), { linkedIn: true, outside: true });
+  assert.deepEqual(links({ url: "https://www.linkedin.com/company/acme" }), { linkedIn: false, outside: true });
+  assert.deepEqual(links({ text: "See https://www.linkedin.com/jobs/view/1 for more" }), { linkedIn: false, outside: false });
+  assert.deepEqual(links({ url: "https://jobright.ai/jobs/info/1" }), { linkedIn: false, outside: false });
+});

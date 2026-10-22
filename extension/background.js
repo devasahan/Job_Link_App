@@ -667,8 +667,19 @@ async function jobrightPageScrape(args) {
     return new Date(t).toISOString().slice(0, 10);
   }
 
+  // Jobs whose original post is on LinkedIn are left out, and counted for the log
+  const viaLinkedIn = new Set();
+  let anyOutsideLink = false;
+
   function normalizeItem(item) {
-    const jr = item?.jobResult || item || {};
+    const record = item?.jobResult || item || {};
+    const links = globalThis.jbRecordLinks(record, "jobright.ai");
+    anyOutsideLink ||= links.outside;
+    if (links.linkedIn) {
+      viaLinkedIn.add(record.jobId || record.id || record.jobTitle || record.title);
+      return null;
+    }
+    const jr = record;
     const cr = item?.companyResult || {};
     const jobId = jr.jobId || jr.id;
     const title = jr.jobTitle || jr.title || "";
@@ -866,7 +877,7 @@ async function jobrightPageScrape(args) {
     delete j._publishMs;
   }
 
-  return { jobs: filtered, rawCount: filtered.length };
+  return { jobs: filtered, rawCount: filtered.length, viaLinkedIn: viaLinkedIn.size, anyOutsideLink };
 }
 
 async function runJobrightScrape(payload) {

@@ -191,6 +191,38 @@
     return n <= limit + 1e-9;
   }
 
+  // A LinkedIn job post: "https://www.linkedin.com/jobs/view/123", "https://lnkd.in/abc"
+  const LINKEDIN_JOB_URL_RE = /^https?:\/\/(?:(?:[\w-]+\.)*linkedin\.com\/(?:[\w-]+\/)*jobs\b|lnkd\.in\/)/i;
+
+  /**
+   * The links anywhere in a job record (a few levels deep): whether one is a
+   * LinkedIn job post, and whether any leads off `ownHost`. Only values that
+   * are whole URLs count, so a description mentioning LinkedIn doesn't.
+   */
+  function recordLinks(record, ownHost = "") {
+    let linkedIn = false;
+    let outside = false;
+    const walk = (value, depth) => {
+      if (typeof value === "string") {
+        const s = value.trim();
+        if (!/^https?:\/\/\S+$/i.test(s)) return;
+        if (LINKEDIN_JOB_URL_RE.test(s)) linkedIn = true;
+        let host = "";
+        try {
+          host = new URL(s).hostname;
+        } catch {
+          return;
+        }
+        if (!ownHost || (host !== ownHost && !host.endsWith(`.${ownHost}`))) outside = true;
+      } else if (value && typeof value === "object" && depth < 4) {
+        for (const v of Object.values(value)) walk(v, depth + 1);
+      }
+    };
+    walk(record, 0);
+    return { linkedIn, outside };
+  }
+
+  globalThis.jbRecordLinks = recordLinks;
   globalThis.jbRequiredYearsFromText = requiredYearsFromText;
   globalThis.jbYearsFromExperienceLabels = yearsFromExperienceLabels;
   globalThis.jbEmploymentKinds = employmentKinds;

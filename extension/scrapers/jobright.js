@@ -119,6 +119,15 @@ async function searchPage(title, daysAgo, position, jobType) {
   return data.result || {};
 }
 
+const linkedInNote = (n) => (n ? ` (${n} leading to LinkedIn left out)` : "");
+
+/** Say so when no job carried its original link: LinkedIn ones can't be told apart then. */
+function noLinksNote(onProgress, scanned, anyOutsideLink) {
+  if (scanned && anyOutsideLink === false) {
+    onProgress?.("Jobright's search data had no original links, so LinkedIn ones couldn't be told apart");
+  }
+}
+
 async function scrapeViaApi({
   query,
   title,
@@ -134,6 +143,9 @@ async function scrapeViaApi({
   const seen = new Set();
   let scanned = 0;
   let total = null;
+  // Jobs whose original post is on LinkedIn are left out
+  const viaLinkedIn = new Set();
+  let anyOutsideLink = false;
 
   for (let position = 0; position < MAX_POSITION; position += PAGE_SIZE) {
     onProgress?.(
@@ -146,6 +158,12 @@ async function scrapeViaApi({
 
     const page = [];
     for (const item of list) {
+      const links = globalThis.jbRecordLinks(item?.jobResult || {}, "jobright.ai");
+      anyOutsideLink ||= links.outside;
+      if (links.linkedIn) {
+        viaLinkedIn.add(item.jobResult.jobId || item.jobResult.jobTitle);
+        continue;
+      }
       const job = normalizeItem(item);
       if (!job || seen.has(job.job_url)) continue;
       seen.add(job.job_url);
@@ -167,8 +185,9 @@ async function scrapeViaApi({
   }
 
   onProgress?.(
-    `Jobright: ${scanned} scanned (site total ${total ?? "?"}) → ${matched.length} matching title`
+    `Jobright: ${scanned} scanned (site total ${total ?? "?"}) → ${matched.length} matching${linkedInNote(viaLinkedIn.size)}`
   );
+  noLinksNote(onProgress, scanned, anyOutsideLink);
   return matched
     .slice(0, resultsWanted)
     .map((j) => ({ ...j, date_posted: j.date_posted.slice(0, 10) }));
@@ -211,8 +230,9 @@ async function scrapeViaTab({
     jobType,
   });
   onProgress?.(
-    `Jobright (tab): ${response.rawCount ?? jobs.length} raw → ${jobs.length} matching title`
+    `Jobright (tab): ${response.rawCount ?? jobs.length} raw → ${jobs.length} matching${linkedInNote(response.viaLinkedIn)}`
   );
+  noLinksNote(onProgress, response.rawCount + (response.viaLinkedIn || 0), response.anyOutsideLink);
   reportStoppedEarly(onProgress, "Jobright", response);
   return jobs.slice(0, resultsWanted);
 }
