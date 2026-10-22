@@ -241,3 +241,15 @@ test("employment: Both keeps full-time and contract, drops part-time and interns
   assert.ok(keeps(job({ listing_type: "Contract" }), { jobType: "both" }));
   assert.ok(!keeps(job({ listing_type: "Internship" }), { jobType: "both" }));
 });
+
+test("title: developer and engineer are the same job", () => {
+  assert.ok(titleMatches("Python Engineer", "Python Developer"));
+  assert.ok(titleMatches("Senior Python Developer", "Python Engineer"));
+  assert.ok(titleMatches("Senior Software Developer", "Software Engineer"));
+  assert.ok(titleMatches("Backend Engineer II", "Backend Developer"));
+  assert.ok(titleMatches("Sr. Software Dev", "Software Engineer"));
+  assert.ok(titleMatches("Software Developer", "SWE"));
+  assert.ok(titleMatches("AI Developer", "AI Engineer"));
+  assert.ok(!titleMatches("Product Designer", "Python Developer"));
+  assert.ok(!titleMatches("Java Engineer", "Python Developer"));
+});

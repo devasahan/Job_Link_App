@@ -67,11 +67,17 @@
     return false;
   }
 
+  // A developer and an engineer are the same job ("Python Developer" = "Python Engineer")
+  const SAME_ROLE = {
+    developer: ["developer", "engineer"],
+    engineer: ["engineer", "developer"],
+  };
+
   function jbTitleMatches(title, query) {
     const tokens = queryTokens(query);
     if (!tokens.length) return true;
     const words = normalize(title).split(" ");
-    return tokens.every((t) => tokenInWords(t, words));
+    return tokens.every((t) => (SAME_ROLE[t] || [t]).some((alt) => tokenInWords(alt, words)));
   }
 
   /**
