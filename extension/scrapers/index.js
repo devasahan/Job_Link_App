@@ -12,6 +12,7 @@ import { scrapeBuiltin } from "./builtin.js";
 import { scrapeJobspresso } from "./jobspresso.js";
 import { scrapeWorkAtAStartup } from "./workatastartup.js";
 import { scrapeTuring } from "./turing.js";
+import { scrapeArc } from "./arc.js";
 import {
   acceptJob,
   filterByTitle,
@@ -35,6 +36,7 @@ const SCRAPERS = {
   jobspresso: scrapeJobspresso,
   workatastartup: scrapeWorkAtAStartup,
   turing: scrapeTuring,
+  arc: scrapeArc,
 };
 
 /**

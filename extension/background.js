@@ -1568,6 +1568,33 @@ async function runWellfoundScrape(payload) {
   }
 }
 
+/** Runs in an arc.dev tab; the logic lives in scrapers/arc-page.js. */
+async function arcPageScrape(args) {
+  return globalThis.jbArcScrape(args);
+}
+
+async function runArcScrape(payload) {
+  try {
+    const result = await scrapeInSiteTab(["https://arc.dev/*"], "https://arc.dev/en-us/remote-jobs", (tabId) =>
+      runPageScrape(
+        tabId,
+        arcPageScrape,
+        {
+          title: payload.title || "",
+          resultsWanted: payload.resultsWanted || 50,
+          hoursOld: payload.hoursOld || 24,
+          years: payload.years ?? "",
+          jobType: payload.jobType || "",
+        },
+        ["scrapers/arc-page.js"]
+      )
+    );
+    return siteReply("Arc", result);
+  } catch (err) {
+    return { error: err?.message || String(err) };
+  }
+}
+
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message?.type === "GLASSDOOR_SCRAPE") {
     runGlassdoorScrape(message.payload || {})
@@ -1607,6 +1634,12 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   }
   if (message?.type === "TURING_SCRAPE") {
     runTuringScrape(message.payload || {})
+      .then(sendResponse)
+      .catch((err) => sendResponse({ error: err?.message || String(err) }));
+    return true;
+  }
+  if (message?.type === "ARC_SCRAPE") {
+    runArcScrape(message.payload || {})
       .then(sendResponse)
       .catch((err) => sendResponse({ error: err?.message || String(err) }));
     return true;

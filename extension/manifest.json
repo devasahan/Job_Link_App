@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "JobBridge Fetch",
-  "version": "1.16.0",
-  "description": "Fetch remote US jobs from 14 boards (LinkedIn, Indeed, Wellfound, Dice, Himalayas, HN Who's hiring and more), then download Excel.",
+  "version": "1.17.0",
+  "description": "Fetch remote US jobs from 15 boards (LinkedIn, Indeed, Wellfound, Dice, Arc, HN Who's hiring and more), then download Excel.",
   "action": {
     "default_popup": "popup.html",
     "default_title": "JobBridge Fetch",
@@ -50,7 +50,8 @@
     "https://builtin.com/*",
     "https://jobspresso.co/*",
     "https://www.workatastartup.com/*",
-    "https://work.turing.com/*"
+    "https://work.turing.com/*",
+    "https://arc.dev/*"
   ],
   "declarative_net_request": {
     "rule_resources": [
